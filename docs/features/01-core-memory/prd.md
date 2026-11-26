@@ -166,7 +166,7 @@ Solo developers and teams get one lightweight, engine-agnostic, Apache-2.0 CLI a
 | Engine | User-Level Instruction File | Import Expansion | MCP Config Path | Project Root Source | Prompt Position & Cache Verification |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Claude Code / Desktop** | `~/.claude/CLAUDE.md` | Verified (`@~/.path` expanded in Claude Code) | `~/.claude.json` (Code), `~/Library/Application Support/Claude/claude_desktop_config.json` (Desktop macOS) | `cwd` (or MCP `roots` when client supplies them) | `PENDING` (controlled benchmark) |
-| **Antigravity (`agy`)** | `~/.gemini/GEMINI.md` | Verified: **No** (`@path` is passed literally, not expanded; user-level managed block uses explicit read instruction + MCP) | `~/.gemini/config/mcp_config.json` | `cwd` (or MCP `roots` when client supplies them) | `PENDING` (controlled benchmark) |
+| **Antigravity (`agy`)** | `~/.gemini/GEMINI.md` | Verified: **No** (`@path` is passed literally, not expanded; user-level managed block uses explicit read instruction + MCP) | `~/.gemini/config/mcp_config.json` | `cwd` (or MCP `roots` when client supplies them) | Verified (`gemini-3.8-flash-low`, 3-turn fresh session, 17-entry 760-tok L0 + 3 MCP tools): **82.2%** warm Turn 2, **81.8%** warm Turn 3 (**68.6%** cumulative incl. cold Turn 1) |
 | **Cursor** | `GAP` (not verified on host) | `GAP` | `~/.cursor/mcp.json` (MCP-only) | `GAP` | `GAP` |
 | **Codex CLI** | `GAP` (not verified on host) | `GAP` | `~/.codex/config.toml` (`GAP`, MCP-only) | `GAP` | `GAP` |
 

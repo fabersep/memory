@@ -11,3 +11,4 @@ export * from './sync.js';
 export * from './importer.js';
 export * from './init.js';
 export * from './mcp.js';
+export * from './ui.js';

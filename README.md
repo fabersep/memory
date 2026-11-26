@@ -10,7 +10,38 @@ Zero databases. Zero native addons. Zero runtime dependencies. Just plain Markdo
 
 ---
 
+## Table of Contents
+
+- [How It Works](#how-it-works-the-2-minute-mental-model)
+- [Prerequisites](#prerequisites)
+- [Solo / Personal Setup (5 Steps)](#step-by-step-quickstart-solo--personal-setup)
+- [Team Mode Setup (Shared Private Repo)](#team-mode-setup-shared-private-git-repo)
+- [Everyday Workflow](#everyday-workflow)
+- [Updating to a Newer Version](#updating-to-a-newer-version)
+- [Cleaning Up or Resetting](#cleaning-up-or-resetting)
+- [CLI Command Reference](#cli-command-reference)
+- [MCP Tools](#mcp-tools)
+- [Troubleshooting & Edge Cases](docs/troubleshooting.md)
+
+---
+
 ## How It Works (The 2-Minute Mental Model)
+
+```mermaid
+flowchart LR
+    subgraph Git["Git HEAD (Source of Truth)"]
+        T["Team Repo<br/>(shared private repo)"]
+        P["Personal Repo<br/>(~/.faber/memory)"]
+        PR["Project Repo<br/>(.faber/memory/)"]
+    end
+
+    T & P -->|"Deterministic compile<br/>(< 1,500 tokens)"| L0["L0: MEMORY.md<br/>(always loaded, cache-warm)"]
+    T & P & PR -->|"In-memory BM25<br/>(auto-reindexes on HEAD)"| L1["L1: memory_search<br/>(compact summaries)"]
+    L1 -->|"Fetch exact ID"| L2["L2: memory_get<br/>(full Markdown body)"]
+
+    L0 --> Agent["AI Coding Agent"]
+    L2 --> Agent
+```
 
 If you are new to agent memory systems, here is everything you need to know:
 
@@ -33,7 +64,7 @@ If you are new to agent memory systems, here is everything you need to know:
 - **Git** (`git --version` to check)
 
 You do **not** need to install anything globally to try it — `npx @fabersep/memory` runs the CLI directly.
-*(If you prefer shorter commands, you can install it globally once with `npm install -g @fabersep/memory` and use `faber-memory` instead of `npx @fabersep/memory`.)*
+*(If you prefer shorter commands, install globally once with `npm install -g @fabersep/memory` and use `faber-memory` instead of `npx @fabersep/memory`.)*
 
 ---
 
@@ -55,15 +86,13 @@ npx @fabersep/memory setup ~/.faber/memory
 
 ### Step 2: Connect your AI coding agent
 
-First, run a **dry-run** to preview the exact file changes without modifying anything:
+First, run a **dry-run** to preview the exact **Before / After** changes without modifying anything:
 
 ```bash
 npx @fabersep/memory init
 ```
 
-You will see a unified diff showing which instruction file and MCP config will be updated for the agents detected on your machine (`claude-code`, `antigravity`, `cursor`).
-
-When the diff looks good, apply it:
+When the preview looks good, apply it:
 
 ```bash
 npx @fabersep/memory init --apply
@@ -73,12 +102,13 @@ npx @fabersep/memory init --apply
 - Compiles your L0 index first to `~/.faber/memory-state/MEMORY.md`.
 - Creates a `.bak` backup of every file it touches.
 - Adds a clearly marked `<!-- faber-memory:start --> ... <!-- faber-memory:end -->` block and registers the `faber-memory` MCP server (`npx -y @fabersep/memory serve`).
+- **Trust & safety:** `init --apply` never disables your AI tool's built-in settings behind your back (for example, it does not edit `~/.claude/settings.json`). If you use Claude Code and want to avoid running two parallel memory systems, see [how to optionally disable Claude auto-memory](docs/troubleshooting.md#claude-auto-memory).
 
-> **Tip:** Want to target only specific engines? Pass `--engine`:
+> **Tip:** Target specific engines with `--engine`:
 > ```bash
 > npx @fabersep/memory init --engine claude-code,antigravity --apply
 > ```
-> Want to revert the wiring cleanly at any time?
+> Revert the wiring cleanly at any time (keeps your memory repos & proposals intact):
 > ```bash
 > npx @fabersep/memory init --undo
 > ```
@@ -114,9 +144,9 @@ npx @fabersep/memory import --from cursor-rules ./.cursor/rules
 ```
 
 **What this does:**
-- Scans your files, infers frontmatter (`id`, `type`, `summary`), checks for near-duplicates and hygiene issues (like hardcoded machine paths or secrets), and stages valid items into **`pre-memory`**.
-- Nothing becomes active until you approve it in Step 4. *(In solo mode, if you trust the whole folder and want to skip manual review, you can add `--approve`.)*
-- If you imported from `claude-memory`, the CLI also prints how to disable Claude's built-in auto-memory (`"autoMemoryEnabled": false` in `~/.claude/settings.json`) so future notes go through `pre-memory`.
+- Scans your files, infers frontmatter (`id`, `type`, `summary`), skips old index files (`MEMORY.md`, `CATALOG.md`, `README.md`, `INDEX.md`), checks for near-duplicates and hygiene issues (secrets or machine-specific paths), and stages valid items into **`pre-memory`**.
+- Nothing becomes active until you approve it in Step 4.
+- **Have `/Users/<name>/...` or `/home/<name>/...` paths in your old notes?** Add `--normalize-paths` to automatically convert them to portable `~/` paths in the staged copy (your source files stay untouched). See [Machine-Specific Paths](docs/troubleshooting.md#machine-specific-paths).
 
 ### Step 4: Review and approve staged proposals
 
@@ -126,13 +156,14 @@ Review everything waiting in `pre-memory`:
 npx @fabersep/memory review
 ```
 
-For each proposal, you will see its `scope`, `type`, `summary`, and full `body`, and choose:
-- `a` — **approve** (queued for a single batch commit at the end)
+You will see a numbered progress bar (`[ 1 / 17 ]  Approved: 0 | Rejected: 0 | Skipped: 0`) and each proposal in a clean card. Actions:
+- `a` — **approve** (queued for a single batch commit)
 - `e` — **edit** the body before approving
-- `r` — **reject** and delete the proposal
+- `r` — **reject** and remove the proposal
 - `s` — **skip** for now
-
-Once you finish the list, all approved proposals are written to your memory repo, committed in **one Git commit**, and your L0 `MEMORY.md` is recompiled automatically.
+- `v` — **view full** body (when a long entry is truncated)
+- `b` — **back** to the previous proposal to change your mind
+- `q` — **quit & save** everything you approved/rejected so far in one commit (pressing `Ctrl+C` also saves your progress safely)
 
 *(Shortcuts: `npx @fabersep/memory review --approve-all`, `npx @fabersep/memory approve <id1> <id2>`, or `npx @fabersep/memory reject <id>`.)*
 
@@ -156,23 +187,52 @@ If both succeed, restart (or start a new session in) your AI coding agent — it
 
 ## Team Mode Setup (Shared Private Git Repo)
 
-If you want to share rules across a team (or across multiple machines via a private Git repo):
+Use Team Mode to share rules across a team — or across your own multiple machines via a private Git repo.
+
+If you are **starting from scratch in Team Mode**, run these 4 steps:
 
 ```bash
-# Clone and register your private team memory repo
-npx @fabersep/memory setup --team git@github.com:your-org/team-memory.git
+# 1. Clone and register your private team memory repo
+#    Accepts HTTPS, github.com/org/repo, org/repo, or SSH (git@github.com:org/repo.git)
+npx @fabersep/memory setup --team https://github.com/your-org/team-memory.git
 
-# Pull the latest team changes and recompile L0
+#    Optional: clone into a custom directory (default: ~/.faber/memory-state/clones/team)
+#    npx @fabersep/memory setup --team https://github.com/your-org/team-memory.git --path ~/team-memory
+
+# 2. Connect your AI coding agent (skip if you already ran init --apply in Solo setup)
+npx @fabersep/memory init --apply
+
+# 3. (Optional) Import existing Markdown notes into the team scope
+npx @fabersep/memory import --from markdown-dir ./path/to/your/memory --scope team
+
+# 4. Review & approve (pushes to the team repo and compiles L0)
+npx @fabersep/memory review
+```
+
+To pull teammates' updates later:
+
+```bash
 npx @fabersep/memory sync
 ```
 
-When you approve a `team` proposal via `review` or `approve`:
+**How team approvals push:**
 - **`--submit-mode auto` (default):** Pushes directly to the team repo's default branch via a clean temporary worktree. If branch protection rejects the push, it automatically falls back to creating a branch and opening a PR.
 - **`--submit-mode pr`:** Always submits via a Pull Request (`npx @fabersep/memory config set-submit-mode pr`).
+
+*(See also: [Step 2: Connect your AI coding agent](#step-2-connect-your-ai-coding-agent) · [Step 3: Import](#step-3-import-your-existing-memory-files-optional-zero-llm) · [Step 4: Review](#step-4-review-and-approve-staged-proposals))*
 
 ---
 
 ## Everyday Workflow
+
+```mermaid
+flowchart LR
+    A["AI Agent works<br/>in your repo"] -->|"Calls memory_propose"| B["pre-memory Inbox<br/>(safe staging)"]
+    B -->|"Human runs<br/>faber-memory review"| C{"Approve / Edit<br/>/ Reject"}
+    C -->|"Reject"| D["Discarded<br/>(no Git commit)"]
+    C -->|"Approve (batched)"| E["Single Git Commit<br/>(or Team PR)"]
+    E -->|"Auto-recompile"| F["Updated L0 MEMORY.md<br/>(ready for next session)"]
+```
 
 Once set up, daily use is simple:
 
@@ -202,6 +262,53 @@ After editing or adding a file manually in your memory repo, commit it with Git 
 
 ---
 
+## Updating to a Newer Version
+
+How you update depends on how you run `@fabersep/memory`:
+
+- **Using `npx` (no global install):**
+  Pass `@latest` to make sure `npx` fetches the newest release instead of a cached copy:
+  ```bash
+  npx @fabersep/memory@latest --help
+  ```
+- **Installed globally via npm:**
+  ```bash
+  npm install -g @fabersep/memory@latest
+  ```
+- **Cloned from GitHub source:**
+  ```bash
+  cd /path/to/memory
+  git pull
+  npm install
+  npm run build
+  ```
+
+After updating, your existing memory repos and config continue working as-is. If a new version updates engine wiring, re-running `npx @fabersep/memory@latest init --apply` is safe and idempotent.
+
+---
+
+## Cleaning Up or Resetting
+
+- **Remove only agent wiring** (keeps all memory repos and pending proposals):
+  ```bash
+  npx @fabersep/memory init --undo
+  ```
+- **Clear all pending `pre-memory` proposals** (with confirmation):
+  ```bash
+  npx @fabersep/memory reject --all
+  ```
+- **Disconnect a configured root** (removes it from `config.json` without deleting files on disk):
+  ```bash
+  npx @fabersep/memory config unset personal
+  # or: npx @fabersep/memory config unset team
+  ```
+- **Full reset** (undoes agent wiring and deletes `~/.faber/memory-state/` after confirmation; add `--include-personal-repo` to also remove your local personal Git repo):
+  ```bash
+  npx @fabersep/memory reset
+  ```
+
+---
+
 ## Installing Globally or Running from Source
 
 **Global npm install** (gives you the `faber-memory` command directly):
@@ -228,18 +335,20 @@ npm link
 | Command | Description |
 | :--- | :--- |
 | `setup [path]` | Initialize a local solo (personal) memory Git repo. |
-| `setup --team <git-url> [--path <dir>] [--submit-mode auto\|pr]` | Clone and configure a shared team memory repo. |
+| `setup --team <url\|org/repo> [--path <dir>] [--submit-mode auto\|pr]` | Clone and configure a shared team memory repo. |
 | `config` | Print current `~/.faber/memory-state/config.json`. |
 | `config set-path <personal\|team> <new-path>` | Move a configured memory root while keeping its UUID. |
 | `config set-submit-mode <auto\|pr>` | Change team approval mode (`auto` push with PR fallback, or always `pr`). |
-| `init [--apply \| --undo] [--engine ...] [--project-hint]` | Preview, apply (with `.bak` backups), or undo user-level agent wiring. |
+| `config unset <personal\|team>` | Disconnect a root from config without deleting files on disk. |
+| `init [--apply \| --undo] [--engine ...] [--project-hint]` | Preview (Before/After), apply (with `.bak` backups), or undo user-level agent wiring. |
 | `compile [--check] [--repo <dir>]` | Compile L0 `MEMORY.md`, or validate schema/budget/hygiene in CI (`--check`). |
 | `sync [--timeout <ms>]` | Fast-forward pull remote updates and recompile L0. |
 | `status` | Show compiled L0 status, configured roots, warnings, and pending/stale proposals. |
-| `review [--approve-all]` | Interactively approve, edit, reject, or skip pending `pre-memory` proposals. |
+| `review [--approve-all]` | Interactively approve, edit, reject, skip, go back, or quit & save `pre-memory` proposals. |
 | `approve <id...> [--mode auto\|pr]` | Approve one or more proposals by ID in a single batch commit. |
-| `reject <id>` | Reject and delete a pending proposal. |
-| `import --from <type> <path> [--split-headings] [--approve]` | Deterministically import existing memory into `pre-memory`. |
+| `reject <id>` / `reject --all [--yes]` | Reject and delete one or all pending proposals. |
+| `reset [--include-personal-repo] [--yes]` | Undo agent wiring and wipe local state (optionally including personal repo). |
+| `import --from <type> <path> [--scope ...] [--split-headings] [--normalize-paths] [--approve]` | Deterministically import existing memory into `pre-memory`. |
 | `serve` | Run the 3-tool stdio MCP server (used by your AI agent's MCP config). |
 
 ---
@@ -260,6 +369,7 @@ The MCP server exposes exactly **3 lean tools** (~350 tokens total tool schema):
 
 This repository follows the [FaberSEP Spec](https://github.com/fabersep/spec) standard:
 
+- [Troubleshooting & Edge Cases](docs/troubleshooting.md)
 - [Master PRD](docs/master-prd.md)
 - [Architecture](docs/architecture.md)
 - [Core Memory PRD](docs/features/01-core-memory/prd.md)

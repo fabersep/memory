@@ -88,6 +88,15 @@ export function scanHygiene(content: string): HygieneFinding[] {
   return findings;
 }
 
+export function normalizeMachinePaths(content: string): { content: string; replacements: number } {
+  let replacements = 0;
+  const next = content.replace(/(?:\/Users\/|\/home\/)[A-Za-z0-9._-]+\//g, () => {
+    replacements++;
+    return '~/';
+  });
+  return { content: next, replacements };
+}
+
 export function formatHygieneErrors(findings: HygieneFinding[], sourceName?: string): string {
   const prefix = sourceName ? `${sourceName}: ` : '';
   return findings

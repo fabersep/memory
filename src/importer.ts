@@ -3,7 +3,7 @@ import * as path from 'node:path';
 import { findNearDuplicates } from './bm25.js';
 import { getHomeDir } from './config.js';
 import { parseMarkdownWithFrontmatter, slugify } from './frontmatter.js';
-import { scanHygiene } from './hygiene.js';
+import { normalizeMachinePaths, scanHygiene } from './hygiene.js';
 import {
   approveProposalsBatch,
   createProposal,
@@ -21,7 +21,9 @@ export interface ImportResult {
   staged: Proposal[];
   approvedIds: string[];
   duplicates: { source: string; matchedId: string; summary: string }[];
-  skippedHygiene: { source: string; reason: string }[];
+  skippedHygiene: { source: string; reason: string; snippet?: string; anchor: string }[];
+  skippedIndex: string[];
+  normalizedPaths: { source: string; replacements: number }[];
   notes: string[];
 }
 
@@ -103,6 +105,7 @@ export async function runImport(
     sourcePath: string;
     scope?: Scope;
     splitHeadings?: boolean;
+    normalizePaths?: boolean;
     approve?: boolean;
     homeDir?: string;
     cwd?: string;
@@ -122,7 +125,9 @@ export async function runImport(
 
   const staged: Proposal[] = [];
   const duplicates: { source: string; matchedId: string; summary: string }[] = [];
-  const skippedHygiene: { source: string; reason: string }[] = [];
+  const skippedHygiene: { source: string; reason: string; snippet?: string; anchor: string }[] = [];
+  const skippedIndex: string[] = [];
+  const normalizedPaths: { source: string; replacements: number }[] = [];
   const notes: string[] = [];
 
   if (options.from === 'claude-memory') {
@@ -142,7 +147,14 @@ export async function runImport(
     const files = collectMarkdownFiles(options.sourcePath);
     for (const filePath of files) {
       const base = path.basename(filePath);
-      if (base.toLowerCase() === 'memory.md' || base.toLowerCase() === 'catalog.md' || base.toLowerCase() === 'readme.md') {
+      const lowerBase = base.toLowerCase();
+      if (
+        lowerBase === 'memory.md' ||
+        lowerBase === 'catalog.md' ||
+        lowerBase === 'readme.md' ||
+        lowerBase === 'index.md'
+      ) {
+        skippedIndex.push(filePath);
         continue;
       }
       const raw = fs.readFileSync(filePath, 'utf8');
@@ -202,18 +214,34 @@ export async function runImport(
   }
 
   for (const c of candidates) {
-    const hygiene = scanHygiene(`${c.summary}\n${c.body}`);
+    let summary = c.summary;
+    let body = c.body;
+    if (options.normalizePaths) {
+      const sNorm = normalizeMachinePaths(summary);
+      const bNorm = normalizeMachinePaths(body);
+      summary = sNorm.content;
+      body = bNorm.content;
+      const total = sNorm.replacements + bNorm.replacements;
+      if (total > 0) {
+        normalizedPaths.push({ source: c.source, replacements: total });
+      }
+    }
+
+    const hygiene = scanHygiene(`${summary}\n${body}`);
     if (hygiene.length > 0) {
+      const hasSecret = hygiene.some((h) => h.category === 'secret');
       skippedHygiene.push({
         source: c.source,
         reason: hygiene.map((h) => h.message).join('; '),
+        snippet: hygiene[0].redactedSnippet,
+        anchor: hasSecret ? 'secrets-detected' : 'machine-specific-paths',
       });
       continue;
     }
 
     const dupes = findNearDuplicates(
-      c.summary,
-      c.body,
+      summary,
+      body,
       loaded.activeEntries,
       [...pending, ...staged],
       config.similarityThreshold,
@@ -233,10 +261,10 @@ export async function runImport(
         scope: targetScope,
         action: 'create',
         entryId: c.entryId,
-        summary: c.summary,
+        summary,
         type: c.type,
         tags: c.tags,
-        body: c.body,
+        body,
         projectRootPath: targetScope === 'project' ? projectRes.projectRoot : undefined,
       },
       homeDir,
@@ -258,6 +286,8 @@ export async function runImport(
     approvedIds,
     duplicates,
     skippedHygiene,
+    skippedIndex,
+    normalizedPaths,
     notes,
   };
 }

@@ -3,6 +3,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { getCompiledL0Path, getHomeDir } from './config.js';
 import { compileGlobalL0 } from './compiler.js';
+import { c, hr, shouldUseColor } from './ui.js';
 import { UserConfig } from './types.js';
 
 export const BLOCK_START = '<!-- faber-memory:start -->';
@@ -293,4 +294,46 @@ export function formatUnifiedDiff(plan: FilePlan): string {
     if (line && !beforeLines.includes(line)) out.push(`+ ${line}`);
   }
   return out.join('\n');
+}
+
+export function formatPlanBeforeAfter(plan: FilePlan, useColor = shouldUseColor()): string {
+  const lines: string[] = [];
+  lines.push(c.dim(hr('═', 64), useColor));
+  lines.push(
+    `${c.bold(c.cyan(`[${plan.engine}]`, useColor), useColor)} ${c.bold(plan.kind, useColor)} — ${plan.filePath}`,
+  );
+  lines.push(c.dim(hr('─', 64), useColor));
+
+  if (!plan.changed) {
+    lines.push(c.dim('  (no changes)', useColor));
+    return lines.join('\n');
+  }
+
+  const beforeLines = (plan.before ?? '').split('\n');
+  const afterLines = plan.after.split('\n');
+  const removed = beforeLines.filter((l) => l && !afterLines.includes(l));
+  const added = afterLines.filter((l) => l && !beforeLines.includes(l));
+
+  lines.push(c.bold(c.red('Before:', useColor), useColor));
+  if (plan.before === null) {
+    lines.push(c.dim('  (file does not exist yet)', useColor));
+  } else if (removed.length === 0) {
+    lines.push(c.dim('  (existing content kept as-is)', useColor));
+  } else {
+    for (const l of removed) {
+      lines.push(c.red(`  - ${l}`, useColor));
+    }
+  }
+
+  lines.push('');
+  lines.push(c.bold(c.green('After:', useColor), useColor));
+  if (added.length === 0) {
+    lines.push(c.dim('  (removed faber-memory block/entry; remaining file preserved)', useColor));
+  } else {
+    for (const l of added) {
+      lines.push(c.green(`  + ${l}`, useColor));
+    }
+  }
+
+  return lines.join('\n');
 }

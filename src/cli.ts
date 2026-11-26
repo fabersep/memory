@@ -19,7 +19,7 @@ import {
   isGitRepo,
 } from './git.js';
 import { ImportSourceType, runImport } from './importer.js';
-import { EngineName, formatUnifiedDiff, planOrApplyInit } from './init.js';
+import { EngineName, formatPlanBeforeAfter, planOrApplyInit } from './init.js';
 import { FaberMemoryMcpServer } from './mcp.js';
 import {
   approveProposalsBatch,
@@ -30,7 +30,14 @@ import {
 } from './proposals.js';
 import { loadAllScopes, resolveProjectRoot } from './store.js';
 import { syncAllRoots } from './sync.js';
-import { Scope, TeamSubmitMode } from './types.js';
+import { Proposal, Scope, TeamSubmitMode } from './types.js';
+import {
+  c,
+  hr,
+  inferErrorAnchor,
+  normalizeTeamUrl,
+  troubleshootingLink,
+} from './ui.js';
 
 function parseFlags(args: string[]): { positional: string[]; flags: Record<string, string | boolean> } {
   const positional: string[] = [];
@@ -58,6 +65,25 @@ function parseFlags(args: string[]): { positional: string[]; flags: Record<strin
   return { positional, flags };
 }
 
+async function promptLine(question: string): Promise<string> {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    return await new Promise<string>((resolve) => {
+      rl.question(question, (ans) => resolve(ans.trim()));
+    });
+  } finally {
+    rl.close();
+  }
+}
+
+function printErrorWithHelp(errMsg: string): void {
+  console.error(c.red(`Error: ${errMsg}`));
+  const anchor = inferErrorAnchor(errMsg);
+  if (anchor) {
+    console.error(c.dim(`  Details: ${troubleshootingLink(anchor)}`));
+  }
+}
+
 async function main(): Promise<number> {
   const argv = process.argv.slice(2);
   const cmd = argv[0];
@@ -78,7 +104,11 @@ async function main(): Promise<number> {
   if (cmd === 'setup') {
     const config = loadConfig(homeDir);
     if (flags.team) {
-      const url = String(flags.team);
+      const rawUrl = String(flags.team);
+      const { url, normalized } = normalizeTeamUrl(rawUrl);
+      if (normalized) {
+        console.log(c.dim(`Normalized team URL: ${rawUrl} -> ${url}`));
+      }
       const dest =
         typeof flags.path === 'string'
           ? path.resolve(flags.path)
@@ -97,7 +127,11 @@ async function main(): Promise<number> {
         submitMode,
       };
       saveConfig(config, homeDir);
-      console.log(`Configured team root at ${dest} (branch: ${defaultBranch}, uuid: ${config.roots.team.uuid})`);
+      console.log(
+        c.green(
+          `Configured team root at ${dest} (branch: ${defaultBranch}, uuid: ${config.roots.team.uuid})`,
+        ),
+      );
       return 0;
     }
 
@@ -115,7 +149,11 @@ async function main(): Promise<number> {
       defaultBranch: 'main',
     };
     saveConfig(config, homeDir);
-    console.log(`Initialized personal memory root at ${personalPath} (uuid: ${config.roots.personal.uuid})`);
+    console.log(
+      c.green(
+        `Initialized personal memory root at ${personalPath} (uuid: ${config.roots.personal.uuid})`,
+      ),
+    );
     return 0;
   }
 
@@ -136,7 +174,7 @@ async function main(): Promise<number> {
       }
       root.path = path.resolve(newPath);
       saveConfig(config, homeDir);
-      console.log(`Updated ${scope} root path to ${root.path} (uuid preserved: ${root.uuid})`);
+      console.log(c.green(`Updated ${scope} root path to ${root.path} (uuid preserved: ${root.uuid})`));
       return 0;
     }
     if (sub === 'set-submit-mode') {
@@ -147,7 +185,27 @@ async function main(): Promise<number> {
       }
       config.roots.team.submitMode = mode;
       saveConfig(config, homeDir);
-      console.log(`Updated team submit mode to ${mode}`);
+      console.log(c.green(`Updated team submit mode to ${mode}`));
+      return 0;
+    }
+    if (sub === 'unset') {
+      const scope = positional[1] as 'personal' | 'team';
+      if (!scope || !['personal', 'team'].includes(scope)) {
+        console.error('Usage: faber-memory config unset <personal|team>');
+        return 1;
+      }
+      const existing = config.roots[scope];
+      if (!existing) {
+        console.log(`Root "${scope}" is not configured.`);
+        return 0;
+      }
+      delete config.roots[scope];
+      saveConfig(config, homeDir);
+      console.log(
+        c.green(
+          `Disconnected ${scope} root from config (files on disk at ${existing.path} were kept intact).`,
+        ),
+      );
       return 0;
     }
     console.log(JSON.stringify(config, null, 2));
@@ -165,15 +223,23 @@ async function main(): Promise<number> {
       cwd: process.cwd(),
       standaloneRepoDir,
     });
-    for (const w of res.warnings) console.warn(`Warning: ${w}`);
+    for (const w of res.warnings) console.warn(c.yellow(`Warning: ${w}`));
     if (!res.ok) {
-      for (const e of res.errors) console.error(`Error: ${e}`);
+      for (const e of res.errors) printErrorWithHelp(e);
       return 1;
     }
     if (checkOnly) {
-      console.log(`OK: compile --check passed (${res.estimatedTokens}/${res.budget} estimated tokens).`);
+      console.log(
+        c.green(
+          `OK: compile --check passed (${res.estimatedTokens}/${res.budget} estimated tokens).`,
+        ),
+      );
     } else {
-      console.log(`Compiled L0 to ${res.outputPath} (${res.estimatedTokens}/${res.budget} estimated tokens).`);
+      console.log(
+        c.green(
+          `Compiled L0 to ${res.outputPath} (${res.estimatedTokens}/${res.budget} estimated tokens).`,
+        ),
+      );
     }
     return 0;
   }
@@ -182,15 +248,17 @@ async function main(): Promise<number> {
     const config = loadConfig(homeDir);
     const timeoutMs = typeof flags.timeout === 'string' ? Number(flags.timeout) : 5000;
     const res = await syncAllRoots(config, { homeDir, timeoutMs, recompile: true });
-    for (const w of res.warnings) console.warn(`Warning: ${w}`);
+    for (const w of res.warnings) console.warn(c.yellow(`Warning: ${w}`));
     if (!res.ok) {
-      for (const e of res.errors) console.error(`Error: ${e}`);
+      for (const e of res.errors) printErrorWithHelp(e);
       return 1;
     }
     console.log(
-      res.advanced
-        ? 'Synced remote updates and recompiled L0.'
-        : 'Already up to date; L0 compiled.',
+      c.green(
+        res.advanced
+          ? 'Synced remote updates and recompiled L0.'
+          : 'Already up to date; L0 compiled.',
+      ),
     );
     return 0;
   }
@@ -206,7 +274,7 @@ async function main(): Promise<number> {
     for (const id of ids) {
       const p = findProposalById(id, homeDir);
       if (!p) {
-        console.error(`Error: Proposal "${id}" not found.`);
+        console.error(c.red(`Error: Proposal "${id}" not found.`));
         return 1;
       }
       proposals.push(p);
@@ -219,26 +287,96 @@ async function main(): Promise<number> {
     });
     for (const m of outcome.messages) console.log(m);
     if (!outcome.ok) {
-      for (const e of outcome.errors) console.error(`Error: ${e}`);
+      for (const e of outcome.errors) printErrorWithHelp(e);
       return 1;
     }
     return 0;
   }
 
   if (cmd === 'reject') {
+    if (flags.all) {
+      const proposals = reconcileAwaitingCommitProposals(homeDir);
+      if (proposals.length === 0) {
+        console.log('No pending proposals to reject.');
+        return 0;
+      }
+      if (!flags.yes) {
+        const ans = (
+          await promptLine(
+            c.yellow(`Reject and delete all ${proposals.length} pending proposal(s)? [y/N]: `),
+          )
+        ).toLowerCase();
+        if (ans !== 'y' && ans !== 'yes') {
+          console.log('Cancelled. No proposals were removed.');
+          return 0;
+        }
+      }
+      for (const p of proposals) {
+        rejectProposal(p.id, homeDir);
+      }
+      console.log(c.green(`Rejected and removed ${proposals.length} pending proposal(s).`));
+      return 0;
+    }
+
     const id = positional[0];
     if (!id) {
-      console.error('Usage: faber-memory reject <proposal-id>');
+      console.error('Usage: faber-memory reject <proposal-id> | faber-memory reject --all [--yes]');
       return 1;
     }
     try {
       const removed = rejectProposal(id, homeDir);
-      console.log(`Rejected and removed proposal ${removed.id}.`);
+      console.log(c.green(`Rejected and removed proposal ${removed.id}.`));
       return 0;
     } catch (err: unknown) {
-      console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      printErrorWithHelp(err instanceof Error ? err.message : String(err));
       return 1;
     }
+  }
+
+  if (cmd === 'reset') {
+    const config = loadConfig(homeDir);
+    const includePersonal = Boolean(flags['include-personal-repo']);
+    const personalPath = config.roots.personal?.path;
+
+    console.log(c.bold(c.yellow('FaberSEP Memory Reset')));
+    console.log('This will:');
+    console.log('  1. Undo agent wiring (remove faber-memory blocks & MCP entries).');
+    console.log(`  2. Delete local state directory: ${homeDir} (config, compiled L0, pre-memory, team clone).`);
+    if (includePersonal && personalPath) {
+      console.log(c.red(`  3. Delete personal memory Git repository: ${personalPath}`));
+    } else if (personalPath) {
+      console.log(
+        c.dim(
+          `  (Personal Git repo at ${personalPath} will be kept. Pass --include-personal-repo to delete it too.)`,
+        ),
+      );
+    }
+
+    if (!flags.yes) {
+      const ans = (
+        await promptLine(c.yellow('Continue with reset? [y/N]: '))
+      ).toLowerCase();
+      if (ans !== 'y' && ans !== 'yes') {
+        console.log('Reset cancelled.');
+        return 0;
+      }
+    }
+
+    try {
+      planOrApplyInit(config, { undo: true, homeDir });
+    } catch {
+      // Best-effort undo even if config is partial
+    }
+
+    if (fs.existsSync(homeDir)) {
+      fs.rmSync(homeDir, { recursive: true, force: true });
+    }
+    if (includePersonal && personalPath && fs.existsSync(personalPath)) {
+      fs.rmSync(personalPath, { recursive: true, force: true });
+    }
+
+    console.log(c.green('Reset complete.'));
+    return 0;
   }
 
   if (cmd === 'review') {
@@ -251,48 +389,137 @@ async function main(): Promise<number> {
       return 0;
     }
 
-    const toApprove = [];
+    type Decision = 'approve' | 'reject' | 'skip';
+    const decisions = new Map<string, Decision>();
+
     if (flags['approve-all']) {
-      toApprove.push(...proposals);
+      for (const p of proposals) decisions.set(p.id, 'approve');
     } else {
       const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+      let interrupted = false;
+      rl.on('SIGINT', () => {
+        interrupted = true;
+        console.log(c.yellow('\nInterrupted — saving decisions made so far...'));
+        rl.close();
+      });
+
       const lineIter = rl[Symbol.asyncIterator]();
-      const ask = async (q: string): Promise<string> => {
+      const ask = async (q: string): Promise<string | null> => {
         process.stdout.write(q);
         const next = await lineIter.next();
-        return next.done ? '' : String(next.value);
+        if (next.done) return null;
+        return String(next.value);
       };
 
+      const MAX_PREVIEW_LINES = 12;
+
       try {
-        for (const p of proposals) {
-          console.log(`\n=== Proposal ${p.id} [${p.scope} / ${p.action}] ===`);
-          console.log(`Entry ID: ${p.entryId}${p.targetId ? ` (target: ${p.targetId})` : ''}`);
-          console.log(`Type: ${p.type} | Summary: ${p.summary}`);
+        let idx = 0;
+        let showFull = false;
+
+        while (idx < proposals.length && !interrupted) {
+          const p = proposals[idx];
+          const approvedCount = [...decisions.values()].filter((d) => d === 'approve').length;
+          const rejectedCount = [...decisions.values()].filter((d) => d === 'reject').length;
+          const skippedCount = [...decisions.values()].filter((d) => d === 'skip').length;
+          const prevDecision = decisions.get(p.id);
+
+          console.log(`\n${c.dim(hr('═', 68))}`);
+          console.log(
+            `${c.bold(c.cyan(`[ ${idx + 1} / ${proposals.length} ]`))}  ` +
+              `${c.green(`Approved: ${approvedCount}`)} | ` +
+              `${c.red(`Rejected: ${rejectedCount}`)} | ` +
+              `${c.yellow(`Skipped: ${skippedCount}`)}` +
+              (prevDecision ? c.dim(`  (current: ${prevDecision})`) : ''),
+          );
+          console.log(c.dim(hr('─', 68)));
+          console.log(
+            `${c.bold('ID:')} ${c.cyan(p.entryId)}  ` +
+              `${c.bold('Scope:')} ${c.magenta(p.scope)}  ` +
+              `${c.bold('Type:')} ${p.type}  ` +
+              `${c.bold('Action:')} ${p.action}` +
+              (p.targetId ? ` (target: ${p.targetId})` : ''),
+          );
+          console.log(`${c.bold('Summary:')} ${p.summary}`);
           if (p.forceNew && p.reason) {
-            console.log(`force_new reason: ${p.reason}`);
+            console.log(`${c.yellow('force_new reason:')} ${p.reason}`);
           }
-          console.log(`Body:\n${p.body}\n`);
-          const answer = (await ask('Action? [a]pprove / [e]dit / [r]eject / [s]kip: '))
-            .trim()
-            .toLowerCase();
+          console.log(c.dim(hr('─', 68)));
+
+          const bodyLines = p.body.split('\n');
+          if (!showFull && bodyLines.length > MAX_PREVIEW_LINES) {
+            console.log(bodyLines.slice(0, MAX_PREVIEW_LINES).join('\n'));
+            console.log(
+              c.dim(
+                `... (+${bodyLines.length - MAX_PREVIEW_LINES} more lines — press [v] to view full body)`,
+              ),
+            );
+          } else {
+            console.log(p.body);
+          }
+          console.log(c.dim(hr('─', 68)));
+
+          const navHints = [
+            c.green('[a]pprove'),
+            c.cyan('[e]dit'),
+            c.red('[r]eject'),
+            c.yellow('[s]kip'),
+            ...(!showFull && bodyLines.length > MAX_PREVIEW_LINES ? ['[v]iew full'] : []),
+            ...(idx > 0 ? ['[b]ack'] : []),
+            c.dim('[q]uit & save'),
+          ].join('  ');
+
+          const rawAns = await ask(`${navHints}\n> `);
+          if (rawAns === null) break;
+          const answer = rawAns.trim().toLowerCase();
+
+          if (answer === 'v' || answer === 'view') {
+            showFull = true;
+            continue;
+          }
+
+          if (answer === 'b' || answer === 'back') {
+            if (idx > 0) {
+              idx--;
+              showFull = false;
+            } else {
+              console.log(c.dim('Already at the first proposal.'));
+            }
+            continue;
+          }
+
+          if (answer === 'q' || answer === 'quit') {
+            break;
+          }
+
+          showFull = false;
 
           if (answer === 'a' || answer === 'approve') {
-            toApprove.push(p);
+            decisions.set(p.id, 'approve');
+            idx++;
           } else if (answer === 'e' || answer === 'edit') {
-            const newBody = (await ask('New body (single line or leave empty to keep): ')).trim();
+            const newBodyRaw = await ask('New body (single line or leave empty to keep): ');
+            if (newBodyRaw === null) break;
+            const newBody = newBodyRaw.trim();
             if (newBody) {
               p.body = newBody;
               saveProposal(p, homeDir);
             }
-            const confirm = (await ask('Approve edited proposal? [y/N]: ')).trim().toLowerCase();
+            const confirmRaw = await ask('Approve edited proposal? [y/N]: ');
+            if (confirmRaw === null) break;
+            const confirm = confirmRaw.trim().toLowerCase();
             if (confirm === 'y' || confirm === 'yes') {
-              toApprove.push(p);
+              decisions.set(p.id, 'approve');
+            } else {
+              decisions.set(p.id, 'skip');
             }
+            idx++;
           } else if (answer === 'r' || answer === 'reject') {
-            rejectProposal(p.id, homeDir);
-            console.log(`Rejected ${p.id}.`);
+            decisions.set(p.id, 'reject');
+            idx++;
           } else {
-            console.log(`Skipped ${p.id}.`);
+            decisions.set(p.id, 'skip');
+            idx++;
           }
         }
       } finally {
@@ -300,15 +527,36 @@ async function main(): Promise<number> {
       }
     }
 
+    const toApprove: Proposal[] = [];
+    const toReject: Proposal[] = [];
+    for (const p of proposals) {
+      const d = decisions.get(p.id);
+      if (d === 'approve') toApprove.push(p);
+      else if (d === 'reject') toReject.push(p);
+    }
+
+    for (const p of toReject) {
+      rejectProposal(p.id, homeDir);
+    }
+
+    let exitCode = 0;
     if (toApprove.length > 0) {
       const outcome = await approveProposalsBatch(config, toApprove, { homeDir });
       for (const m of outcome.messages) console.log(m);
       if (!outcome.ok) {
-        for (const e of outcome.errors) console.error(`Error: ${e}`);
-        return 1;
+        for (const e of outcome.errors) printErrorWithHelp(e);
+        exitCode = 1;
       }
     }
-    return 0;
+
+    const remainingCount = proposals.length - toApprove.length - toReject.length;
+    console.log(
+      `\n${c.bold('Review summary:')} ` +
+        `${c.green(`${toApprove.length} approved`)} | ` +
+        `${c.red(`${toReject.length} rejected`)} | ` +
+        `${c.yellow(`${remainingCount} remaining in pre-memory`)}`,
+    );
+    return exitCode;
   }
 
   if (cmd === 'status') {
@@ -317,8 +565,12 @@ async function main(): Promise<number> {
     const loaded = loadAllScopes(config, projectRes);
     const proposals = reconcileAwaitingCommitProposals(homeDir);
 
-    console.log('FaberSEP Memory Status');
-    console.log(`  Compiled L0: ${getCompiledL0Path(homeDir)} (${fs.existsSync(getCompiledL0Path(homeDir)) ? 'present' : 'missing'})`);
+    console.log(c.bold('FaberSEP Memory Status'));
+    const l0Path = getCompiledL0Path(homeDir);
+    const l0Present = fs.existsSync(l0Path);
+    console.log(
+      `  Compiled L0: ${l0Path} (${l0Present ? c.green('present') : c.yellow('missing')})`,
+    );
     if (config.roots.team) {
       console.log(
         `  Team root: ${config.roots.team.path} (HEAD: ${getHeadSha(config.roots.team.path)?.slice(0, 8) || 'none'}, mode: ${config.roots.team.submitMode || 'auto'})`,
@@ -334,7 +586,7 @@ async function main(): Promise<number> {
     );
 
     if (loaded.uncommittedWarnings.length > 0) {
-      console.log('Warnings:');
+      console.log(c.yellow('Warnings:'));
       for (const w of loaded.uncommittedWarnings) console.log(`  - ${w}`);
     }
 
@@ -351,7 +603,7 @@ async function main(): Promise<number> {
         console.log(`    file: ${p.targetFilePath} — run "git add ${p.targetFilePath} && git commit" to activate`);
       }
       if (p.status === 'push_failed' && p.error) {
-        console.log(`    push error: ${p.error}`);
+        console.log(c.red(`    push error: ${p.error}`));
       }
     }
     return 0;
@@ -363,7 +615,7 @@ async function main(): Promise<number> {
     const sourcePath = positional[0];
     if (!from || !sourcePath) {
       console.error(
-        'Usage: faber-memory import --from <markdown-dir|claude-memory|agents-md|cursor-rules> <path> [--split-headings] [--approve]',
+        'Usage: faber-memory import --from <markdown-dir|claude-memory|agents-md|cursor-rules> <path> [--scope personal|team|project] [--split-headings] [--normalize-paths] [--approve]',
       );
       return 1;
     }
@@ -373,30 +625,65 @@ async function main(): Promise<number> {
         sourcePath: path.resolve(sourcePath),
         scope: typeof flags.scope === 'string' ? (flags.scope as Scope) : 'personal',
         splitHeadings: Boolean(flags['split-headings']),
+        normalizePaths: Boolean(flags['normalize-paths']),
         approve: Boolean(flags.approve),
         homeDir,
         cwd: process.cwd(),
       });
-      console.log(`Staged ${res.staged.length} proposal(s) in pre-memory.`);
+      console.log(c.green(`Staged ${res.staged.length} proposal(s) in pre-memory.`));
       if (res.approvedIds.length > 0) {
-        console.log(`Approved ${res.approvedIds.length} proposal(s) in solo mode.`);
+        console.log(c.green(`Approved ${res.approvedIds.length} proposal(s) in solo mode.`));
+      }
+      if (res.normalizedPaths.length > 0) {
+        console.log(
+          c.cyan(`Normalized machine paths to ~/ in ${res.normalizedPaths.length} file(s):`),
+        );
+        for (const n of res.normalizedPaths) {
+          console.log(`  - ${n.source} (${n.replacements} replacement(s))`);
+        }
+      }
+      if (res.skippedIndex.length > 0) {
+        console.log(
+          c.dim(
+            `Index files skipped (${res.skippedIndex.length}) — faber-memory compiles its own L0 MEMORY.md index:`,
+          ),
+        );
+        for (const f of res.skippedIndex) {
+          console.log(c.dim(`  - ${f}`));
+        }
+        console.log(c.dim(`  Details: ${troubleshootingLink('index-files')}`));
       }
       if (res.duplicates.length > 0) {
-        console.log(`Duplicates skipped (${res.duplicates.length}):`);
+        console.log(c.yellow(`Duplicates skipped (${res.duplicates.length}):`));
         for (const d of res.duplicates) {
           console.log(`  - ${d.source} matches "${d.matchedId}" (${d.summary})`);
         }
       }
       if (res.skippedHygiene.length > 0) {
-        console.log(`Hygiene skipped (${res.skippedHygiene.length}):`);
+        console.log(c.yellow(`Hygiene skipped (${res.skippedHygiene.length}):`));
         for (const s of res.skippedHygiene) {
           console.log(`  - ${s.source}: ${s.reason}`);
+          if (s.snippet) {
+            console.log(c.dim(`    snippet: ${s.snippet}`));
+          }
+          if (s.anchor === 'machine-specific-paths') {
+            console.log(
+              c.cyan(
+                '    hint: Replace /Users/<name>/ or /home/<name>/ with ~/, or re-run with --normalize-paths.',
+              ),
+            );
+          } else {
+            console.log(
+              c.cyan('    hint: Remove the secret/token and reference an env var name instead.'),
+            );
+          }
+          console.log(c.dim(`    details: ${troubleshootingLink(s.anchor)}`));
         }
       }
       for (const n of res.notes) console.log(n);
       return 0;
     } catch (err: unknown) {
-      console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      printErrorWithHelp(err instanceof Error ? err.message : String(err));
       return 1;
     }
   }
@@ -420,22 +707,29 @@ async function main(): Promise<number> {
         homeDir,
       });
 
-      for (const n of res.notes) console.log(n);
+      for (const n of res.notes) console.log(c.yellow(n));
       for (const p of res.plans) {
-        console.log(formatUnifiedDiff(p));
+        console.log(formatPlanBeforeAfter(p));
       }
-      if (undo && res.backups.length > 0) {
-        console.log(`Backup files preserved (not auto-restored): ${res.backups.join(', ')}`);
+      if (undo) {
+        console.log(
+          c.cyan(
+            '\nRemoved agent wiring only. Your memory repos and pending pre-memory proposals were kept intact. (Use "faber-memory reset" to wipe local state.)',
+          ),
+        );
+        if (res.backups.length > 0) {
+          console.log(c.dim(`Backup files preserved (not auto-restored): ${res.backups.join(', ')}`));
+        }
       }
       if (res.projectHint) {
         console.log(`Project hint: ${res.projectHint}`);
       }
       if (!apply && !undo) {
-        console.log('\nDry-run only. Re-run with --apply to write changes.');
+        console.log(c.yellow('\nDry-run only. Re-run with --apply to write changes.'));
       }
       return 0;
     } catch (err: unknown) {
-      console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      printErrorWithHelp(err instanceof Error ? err.message : String(err));
       return 1;
     }
   }
@@ -449,16 +743,17 @@ function printHelp(): void {
   console.log(`@fabersep/memory (faber-memory)
 
 Commands:
-  setup [path] [--team <git-url> --path <dir> --submit-mode auto|pr]
-  config [set-path <personal|team> <new-path> | set-submit-mode <auto|pr>]
-  init [--apply | --undo] [--engine claude-code,antigravity,cursor,codex] [--project-hint]
+  setup [path] [--team <git-url|org/repo> --path <dir> --submit-mode auto|pr]
+  config [set-path <personal|team> <new-path> | set-submit-mode <auto|pr> | unset <personal|team>]
+  init [--apply | --undo] [--engine claude-code,antigravity,claude-desktop,cursor,codex] [--project-hint]
   compile [--check] [--repo <dir>]
   sync [--timeout <ms>]
   status
   review [--approve-all]
   approve <proposal-id> [...] [--mode auto|pr]
-  reject <proposal-id>
-  import --from <markdown-dir|claude-memory|agents-md|cursor-rules> <path> [--split-headings] [--approve]
+  reject <proposal-id> | reject --all [--yes]
+  reset [--include-personal-repo] [--yes]
+  import --from <markdown-dir|claude-memory|agents-md|cursor-rules> <path> [--scope personal|team|project] [--split-headings] [--normalize-paths] [--approve]
   serve
 `);
 }
@@ -468,6 +763,6 @@ main()
     if (code !== 0) process.exit(code);
   })
   .catch((err: unknown) => {
-    console.error(err instanceof Error ? err.message : String(err));
+    printErrorWithHelp(err instanceof Error ? err.message : String(err));
     process.exit(1);
   });

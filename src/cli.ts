@@ -38,6 +38,7 @@ import {
 } from './stats.js';
 import { loadAllScopes, resolveProjectRoot } from './store.js';
 import { syncAllRoots } from './sync.js';
+import { getPackageVersion } from './version.js';
 import { Proposal, Scope, TeamSubmitMode } from './types.js';
 import {
   c,
@@ -97,6 +98,11 @@ async function main(): Promise<number> {
   const cmd = argv[0];
   const { positional, flags } = parseFlags(argv.slice(1));
   const homeDir = getHomeDir();
+
+  if (cmd === '--version' || cmd === '-v' || cmd === 'version') {
+    console.log(getPackageVersion());
+    return 0;
+  }
 
   if (!cmd || cmd === '--help' || cmd === '-h') {
     printHelp();
@@ -690,6 +696,13 @@ async function main(): Promise<number> {
           console.log(c.dim(`    details: ${troubleshootingLink(s.anchor)}`));
         }
       }
+      if (res.skippedHygiene.length > 0) {
+        console.log(
+          c.yellow(
+            `NOT imported: ${res.skippedHygiene.length} item(s) were left out because of the hygiene check above. Fix them (or add --normalize-paths for paths) and run import again; already staged items are not duplicated.`,
+          ),
+        );
+      }
       for (const n of res.notes) console.log(n);
       return 0;
     } catch (err: unknown) {
@@ -816,6 +829,9 @@ Commands:
   reset [--include-personal-repo] [--yes]
   import --from <markdown-dir|claude-memory|agents-md|cursor-rules> <path> [--scope personal|team|project] [--split-headings] [--normalize-paths] [--approve]
   serve
+  --version
+
+Docs: https://github.com/fabersep/memory#readme
 `);
 }
 

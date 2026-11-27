@@ -38,7 +38,7 @@ Putting everything in one static instruction file works up to ~100 lines. After 
 | **Source of truth** | Tool-private local files | Database (Postgres, Qdrant, SQLite, cloud) | **Committed Git `HEAD` Markdown** |
 | **Multi-agent portability** | Single tool only | Depends on server/SDK | **Claude Code, Antigravity, Desktop, Cursor, Codex** |
 | **Agent write safety** | Direct silent writes | Automatic LLM extraction/writes | **Read-only active memory + `pre-memory` human review** |
-| **Prompt cache impact** | Grows & shifts unpredictably | Dynamic RAG injection breaks prefix cache | **Deterministic L0 (<1,500 tok), cache-warm (~80%+)** |
+| **Prompt cache impact** | Grows & shifts unpredictably | Dynamic RAG injection breaks prefix cache | **Deterministic L0 (<1,500 tok), byte-identical prefix; measure your hit rate with `stats --cache`** |
 | **Infrastructure required** | None | Docker / DB / embedding API keys | **Zero runtime dependencies (Node >= 20 + Git)** |
 | **Team sharing & audit** | None | Custom auth / DB hosting | **Standard private Git repo + PRs + hygiene CI** |
 
@@ -85,5 +85,5 @@ Yes:
 
 ## 8. Does it work from mobile apps (like Claude Mobile)?
 
-- **`v0.1` (today):** Runs as a local `stdio` MCP server (`npx @fabersep/memory serve`) alongside your local Git repos — so it works natively on your laptop/desktop/server (**Claude Code, Antigravity, Claude Desktop, Cursor, Codex**). If you connect from Claude Mobile to a **Remote Control** session running on your own machine or Linux server, that session automatically has full access to `@fabersep/memory`.
-- **Roadmap (`v0.2+`):** A thin Remote MCP transport (Streamable HTTP + token auth) so mobile and web chat clients (such as Claude Mobile / `claude.ai` Custom Connectors) can connect directly to your self-hosted memory server.
+- **Today:** Runs as a local `stdio` MCP server (`npx @fabersep/memory serve`) alongside your local Git repos — so it works natively on your laptop/desktop/server (**Claude Code, Antigravity, Claude Desktop, Cursor, Codex**). If you connect from Claude Mobile to a **Remote Control** session running on your own machine or Linux server, that session automatically has full access to `@fabersep/memory`.
+- **Roadmap:** A thin Remote MCP transport (Streamable HTTP + token auth) so mobile and web chat clients (such as Claude Mobile / `claude.ai` Custom Connectors) can connect directly to your self-hosted memory server.

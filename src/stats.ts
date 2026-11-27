@@ -15,25 +15,15 @@ import {
 } from './metrics.js';
 import { loadScopeFromHead, PROJECT_MEMORY_REL_DIR, resolveProjectRoot } from './store.js';
 import { c, hr } from './ui.js';
+import { getPackageVersion } from './version.js';
+
+export { getPackageVersion };
 
 export const STATS_SCHEMA_VERSION = 1;
 export const MCP_SCHEMA_TOKEN_TARGET = 500;
 export const STALE_VERIFIED_DAYS = 90;
 export const L0_CHURN_WARN_THRESHOLD = 5;
 
-export function getPackageVersion(): string {
-  try {
-    const __dirname = path.dirname(fileURLToPath(import.meta.url));
-    const pkgPath = path.resolve(__dirname, '../../package.json');
-    const raw = JSON.parse(fs.readFileSync(pkgPath, 'utf8')) as { version?: unknown };
-    if (typeof raw.version === 'string' && raw.version.trim()) {
-      return raw.version.trim();
-    }
-  } catch {
-    // Fallback below
-  }
-  return '0.2.0';
-}
 
 export function validateDaysArg(raw: unknown): { ok: true; days: number } | { ok: false; error: string } {
   if (raw === undefined || raw === false) {

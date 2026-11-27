@@ -9,6 +9,7 @@ import { appendMetric, MAX_GET_FOUND_IDS, ProposeOutcome } from './metrics.js';
 import { createProposal, reconcileAwaitingCommitProposals } from './proposals.js';
 import { loadAllScopes, LoadedAllScopes, resolveProjectRoot } from './store.js';
 import { syncAllRoots } from './sync.js';
+import { getPackageVersion } from './version.js';
 import {
   EntryType,
   L0Mode,
@@ -54,7 +55,7 @@ export const MCP_TOOLS = [
   {
     name: 'memory_propose',
     description:
-      'Submit a create, update, or supersede proposal to pre-memory for human approval.',
+      'Propose a durable rule, decision, lesson or preference you learned (or a fix to an existing entry). Goes to pre-memory for human approval; never edits active memory.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -448,7 +449,7 @@ export class FaberMemoryMcpServer {
           },
           serverInfo: {
             name: '@fabersep/memory',
-            version: '0.1.0',
+            version: getPackageVersion(),
           },
         },
       };

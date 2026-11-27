@@ -713,8 +713,15 @@ async function main(): Promise<number> {
 
   if (cmd === 'init') {
     const config = loadConfig(homeDir);
-    const apply = Boolean(flags.apply);
     const undo = Boolean(flags.undo);
+    // init applies by default; --preview (alias --dry-run) only shows the diff.
+    // --apply is kept as a no-op alias for older docs and scripts.
+    const preview = Boolean(flags.preview || flags['dry-run']);
+    if (preview && flags.apply) {
+      printErrorWithHelp('Use either --preview or --apply, not both.');
+      return 1;
+    }
+    const apply = !undo && !preview;
     const projectHint = Boolean(flags['project-hint']);
     const engines =
       typeof flags.engine === 'string'
@@ -747,8 +754,15 @@ async function main(): Promise<number> {
       if (res.projectHint) {
         console.log(`Project hint: ${res.projectHint}`);
       }
-      if (!apply && !undo) {
-        console.log(c.yellow('\nDry-run only. Re-run with --apply to write changes.'));
+      if (preview) {
+        console.log(c.yellow('\nPreview only. Run "faber-memory init" to write these changes.'));
+      } else if (apply) {
+        const wired = [...new Set(res.plans.map((p) => p.engine))];
+        console.log(
+          c.green(
+            `\nConnected: ${wired.join(', ') || 'nothing to change'}. Backups are saved as .bak; undo any time with "faber-memory init --undo". Start a new chat in your assistant to use memory.`,
+          ),
+        );
       }
       return 0;
     } catch (err: unknown) {
@@ -817,7 +831,7 @@ function printHelp(): void {
 Commands:
   setup [path] [--team <git-url|org/repo> --path <dir> --submit-mode auto|pr]
   config [set-path <personal|team> <new-path> | set-submit-mode <auto|pr> | unset <personal|team>]
-  init [--apply | --undo] [--engine claude-code,antigravity,claude-desktop,cursor,codex] [--project-hint]
+  init [--preview | --undo] [--engine claude-code,antigravity,claude-desktop,cursor,codex] [--project-hint]
   compile [--check] [--repo <dir>]
   sync [--timeout <ms>]
   status

@@ -366,11 +366,11 @@ export function runDoctor(options: {
 
   if (mismatchedEngines.length > 0) {
     wiringStatus = 'WARN';
-    wiringHint = 'Run "faber-memory init --apply" to update engine pointers to the current compiled MEMORY.md path.';
+    wiringHint = 'Run "faber-memory init" to update engine pointers to the current compiled MEMORY.md path.';
   } else if (wiredEngines.length === 0) {
     wiringStatus = 'WARN';
     wiringDetails.push('No AI coding engine appears wired for faber-memory.');
-    wiringHint = 'Run "faber-memory init --apply" to wire Claude Code, Antigravity, Claude Desktop, or Cursor.';
+    wiringHint = 'Run "faber-memory init" to wire Claude Code, Antigravity, Claude Desktop, or Cursor.';
   } else {
     wiringDetails.push(`Wired engines: ${wiredEngines.join(', ')}.`);
   }

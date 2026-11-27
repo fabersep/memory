@@ -55,13 +55,7 @@ This creates `~/.faber/memory`, an empty folder for your notes, with its own Git
 npx @fabersep/memory init
 ```
 
-This only *shows* what it would change in your assistants' settings. It doesn't change anything yet. If it looks right, run:
-
-```bash
-npx @fabersep/memory init --apply
-```
-
-It finds Claude Code, Antigravity and Cursor on your computer (add Claude Desktop with `--engine claude-desktop`). It keeps a backup of every file it touches, and you can undo it at any time with `npx @fabersep/memory init --undo`.
+It finds the assistants on your computer and connects them. It keeps a backup of every file it touches, and you can undo it at any time with `npx @fabersep/memory init --undo`.
 
 **3. Check that everything is connected**
 
@@ -73,7 +67,11 @@ You should see `PASS` lines. Each `WARN` or `FAIL` line comes with a one-line hi
 
 **4. Start a new chat in your assistant**
 
-Tell it something worth remembering, for example: *"From now on, always write commit messages in English. Please remember this."* It should suggest saving it as a memory. (If it doesn't, ask it to: *"Propose this as a memory."*)
+Tell it something about your project that it would otherwise get wrong, for example:
+
+> *"In this project we run the tests with `make test`, never `npm test`. Please remember that."*
+
+It should suggest saving this as a memory. (If it doesn't, ask it: *"Propose this as a memory."*)
 
 **5. Approve what you want to keep**
 
@@ -81,7 +79,9 @@ Tell it something worth remembering, for example: *"From now on, always write co
 npx @fabersep/memory review
 ```
 
-You'll see each suggestion as a card. Press `a` to keep it, `e` to edit it first, `r` to throw it away, `s` to skip, or `q` to save and quit. Open a new chat, and your assistant now knows the rule.
+You'll see each suggestion as a card. Press `a` to keep it, `e` to edit it first, `r` to throw it away, `s` to skip, or `q` to save and quit.
+
+Now open a **new** chat and ask: *"How do I run the tests here?"* Your assistant answers `make test`, without you telling it again.
 
 > **Already have notes?** If you keep rules in an `AGENTS.md`, a `CLAUDE.md`, Cursor rules or a folder of Markdown files, you can bring them in. They go to the same review step first. See [Importing existing notes](docs/guide.md#importing-existing-notes).
 

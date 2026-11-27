@@ -24,7 +24,7 @@ last_updated: 2026-11-26
 3. **3-tool pure-JS BM25 MCP server:** `memory_search`, `memory_get`, `memory_propose` over stdio with zero native addons and automatic `HEAD`-change reindexing.
 4. **Human-gated `pre-memory` workflow:** Proposals live in a UUID-keyed local state directory; humans `review` (with batching), `approve` (personal commit / team throwaway worktree direct push or PR fallback / project uncommitted file), or `reject`.
 5. **Deterministic hygiene scan:** Blocks secrets and machine-specific absolute paths on `propose`, `approve`, and `compile --check` with redacted diagnostics.
-6. **Multi-engine `init` & zero-LLM `import`:** Non-destructive user-level wiring with dry-run diff, `.bak` backup, and `--undo`; deterministic import from `markdown-dir`, `claude-memory`, `agents-md`, and `cursor-rules`.
+6. **Multi-engine `init` & zero-LLM `import`:** Non-destructive user-level wiring that applies by default with `.bak` backup, `--preview` diff, and `--undo`; deterministic import from `markdown-dir`, `claude-memory`, `agents-md`, and `cursor-rules`.
 
 ## 4. Non-Goals (v0.1)
 

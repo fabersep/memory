@@ -1,6 +1,7 @@
 import { getHomeDir } from './config.js';
 import { compileGlobalL0 } from './compiler.js';
 import { getHeadSha, gitPullFfOnly, hasRemote } from './git.js';
+import { CompileTrigger } from './metrics.js';
 import { UserConfig } from './types.js';
 
 export interface SyncResult {
@@ -17,6 +18,7 @@ export async function syncAllRoots(
     homeDir?: string;
     timeoutMs?: number;
     recompile?: boolean;
+    trigger?: CompileTrigger;
   } = {},
 ): Promise<SyncResult> {
   const homeDir = options.homeDir || getHomeDir();
@@ -48,7 +50,7 @@ export async function syncAllRoots(
 
   let recompiled = false;
   if (shouldRecompile && errors.length === 0) {
-    const comp = compileGlobalL0(config, { homeDir });
+    const comp = compileGlobalL0(config, { homeDir, trigger: options.trigger || 'sync' });
     if (comp.ok) {
       recompiled = true;
     } else {

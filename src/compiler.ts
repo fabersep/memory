@@ -3,6 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { getCompiledL0Path, getHomeDir, getStateDir, withStateLock } from './config.js';
 import { formatHygieneErrors, scanHygiene } from './hygiene.js';
+import { appendMetric, CompileTrigger } from './metrics.js';
 import {
   loadScopeFromHead,
   PROJECT_MEMORY_REL_DIR,
@@ -29,9 +30,21 @@ export interface CompileResult {
   warnings: string[];
 }
 
+export function renderEntryFullBody(entry: MemoryEntry): string {
+  return `### ${entry.id} (${entry.type})\n\n${entry.body}`;
+}
+
+export function estimateCorpusTokens(entries: MemoryEntry[]): number {
+  const active = entries
+    .filter((e) => e.status === 'active')
+    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  if (active.length === 0) return 0;
+  return estimateTokens(active.map(renderEntryFullBody).join('\n'));
+}
+
 function renderEntryL0(entry: MemoryEntry): string {
   if (entry.l0 === 'body') {
-    return `### ${entry.id} (${entry.type})\n\n${entry.body}`;
+    return renderEntryFullBody(entry);
   }
   return `- \`${entry.id}\` (${entry.type}): ${entry.summary}`;
 }
@@ -73,6 +86,7 @@ export function compileGlobalL0(
     includeProjectCheck?: boolean;
     cwd?: string;
     standaloneRepoDir?: string;
+    trigger?: CompileTrigger;
   } = {},
 ): CompileResult {
   const homeDir = options.homeDir || getHomeDir();
@@ -213,9 +227,22 @@ export function compileGlobalL0(
 
   const outputPath = getCompiledL0Path(homeDir);
   if (!options.checkOnly) {
+    let initial = false;
+    let changed = false;
+    const newHash = crypto.createHash('sha256').update(output, 'utf8').digest('hex');
+
     withStateLock(() => {
       const stateDir = getStateDir(homeDir);
       fs.mkdirSync(stateDir, { recursive: true });
+      if (fs.existsSync(outputPath)) {
+        const priorBytes = fs.readFileSync(outputPath);
+        const priorHash = crypto.createHash('sha256').update(priorBytes).digest('hex');
+        initial = false;
+        changed = priorHash !== newHash;
+      } else {
+        initial = true;
+        changed = false;
+      }
       const tmpPath = path.join(
         stateDir,
         `MEMORY.md.tmp.${process.pid}.${crypto.randomBytes(4).toString('hex')}`,
@@ -223,6 +250,26 @@ export function compileGlobalL0(
       fs.writeFileSync(tmpPath, output, 'utf8');
       fs.renameSync(tmpPath, outputPath);
     }, homeDir);
+
+    const activeGlobalEntries = [
+      ...(effectiveTeam?.entries || []),
+      ...(personalScope?.entries || []),
+    ].filter((e) => e.status === 'active');
+
+    appendMetric(
+      {
+        type: 'compile',
+        ts: new Date().toISOString(),
+        trigger: options.trigger || 'cli',
+        initial,
+        changed,
+        l0_sha256: newHash,
+        l0_tokens: tokens,
+        corpus_tokens: estimateCorpusTokens(activeGlobalEntries),
+        active_entries: activeGlobalEntries.length,
+      },
+      homeDir,
+    );
   }
 
   return {

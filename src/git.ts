@@ -182,7 +182,7 @@ export function readHeadFile(repoDir: string, relPath: string): string | null {
 }
 
 export function getUncommittedFiles(repoDir: string, subPath = ''): string[] {
-  const args = ['-C', repoDir, 'status', '--porcelain'];
+  const args = ['--no-optional-locks', '-C', repoDir, 'status', '--porcelain'];
   if (subPath) args.push('--', subPath);
   const res = gitSync(args);
   if (!res.ok) return [];

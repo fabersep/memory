@@ -31,7 +31,11 @@ src/
   importer.ts     # Deterministic zero-LLM import (markdown-dir, claude-memory, agents-md, cursor-rules)
   init.ts         # Multi-engine delivery matrix, dry-run diff, managed blocks, .bak backup, --undo
   mcp.ts          # Stdio JSON-RPC 2.0 MCP server exposing exactly 3 tools (memory_search, memory_get, memory_propose)
-  cli.ts          # CLI entrypoint (init, compile, sync, review, approve, reject, status, import, serve, config)
+  metrics.ts      # Privacy-first local append-only metrics.jsonl ledger, 90d/10MB pruning, non-blocking lock
+  cache-logs.ts   # Opt-in read-only numeric prompt-cache log parser (Claude Code, Antigravity) & L0 correlation
+  stats.ts        # Context efficiency, retrieval quality, entry temperature, funnel, and allowlist --share card
+  doctor.ts       # Read-only 6-category health diagnostics (PASS/WARN/FAIL) with zero disk or Git index mutations
+  cli.ts          # CLI entrypoint (init, compile, sync, review, approve, reject, status, stats, doctor, import, serve, config, reset)
   index.ts        # Public library exports
 ```
 

@@ -36,3 +36,4 @@ last_updated: 2026-11-26
 ## 5. Feature Index
 
 - [01-core-memory](features/01-core-memory/prd.md) — Core v0.1 specification (`FR-01`–`FR-09`, 55 BDD scenarios).
+- [02-metrics-and-stats](features/02-metrics-and-stats/prd.md) — Local observability, prompt-cache measurement, anonymized benchmark card, and read-only `doctor` v0.2 specification (`FR-01`–`FR-06`, 34 BDD scenarios).

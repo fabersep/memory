@@ -4,6 +4,7 @@ import { findNearDuplicates } from './bm25.js';
 import { getHomeDir } from './config.js';
 import { parseMarkdownWithFrontmatter, slugify } from './frontmatter.js';
 import { normalizeMachinePaths, scanHygiene } from './hygiene.js';
+import { appendMetric } from './metrics.js';
 import {
   approveProposalsBatch,
   createProposal,
@@ -230,6 +231,18 @@ export async function runImport(
     const hygiene = scanHygiene(`${summary}\n${body}`);
     if (hygiene.length > 0) {
       const hasSecret = hygiene.some((h) => h.category === 'secret');
+      appendMetric(
+        {
+          type: 'propose',
+          ts: new Date().toISOString(),
+          source: 'import',
+          scope: targetScope,
+          action: 'create',
+          outcome: 'hygiene_blocked',
+          hygiene_category: hasSecret ? 'secret' : 'machine-path',
+        },
+        homeDir,
+      );
       skippedHygiene.push({
         source: c.source,
         reason: hygiene.map((h) => h.message).join('; '),
@@ -247,6 +260,17 @@ export async function runImport(
       config.similarityThreshold,
     );
     if (dupes.length > 0) {
+      appendMetric(
+        {
+          type: 'propose',
+          ts: new Date().toISOString(),
+          source: 'import',
+          scope: targetScope,
+          action: 'create',
+          outcome: 'duplicate_blocked',
+        },
+        homeDir,
+      );
       duplicates.push({
         source: c.source,
         matchedId: dupes[0].id,
@@ -266,6 +290,17 @@ export async function runImport(
         tags: c.tags,
         body,
         projectRootPath: targetScope === 'project' ? projectRes.projectRoot : undefined,
+      },
+      homeDir,
+    );
+    appendMetric(
+      {
+        type: 'propose',
+        ts: new Date().toISOString(),
+        source: 'import',
+        scope: targetScope,
+        action: 'create',
+        outcome: 'staged',
       },
       homeDir,
     );

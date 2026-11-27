@@ -12,6 +12,7 @@ Zero databases. Zero native addons. Zero runtime dependencies. Just plain Markdo
 
 ## Table of Contents
 
+- [Why FaberSEP Memory?](#why-fabersep-memory)
 - [How It Works](#how-it-works-the-2-minute-mental-model)
 - [Prerequisites](#prerequisites)
 - [Solo / Personal Setup (5 Steps)](#step-by-step-quickstart-solo--personal-setup)
@@ -21,7 +22,25 @@ Zero databases. Zero native addons. Zero runtime dependencies. Just plain Markdo
 - [Cleaning Up or Resetting](#cleaning-up-or-resetting)
 - [CLI Command Reference](#cli-command-reference)
 - [MCP Tools](#mcp-tools)
+- [FAQ & Comparisons](docs/why-faber-memory.md)
 - [Troubleshooting & Edge Cases](docs/troubleshooting.md)
+
+---
+
+## Why FaberSEP Memory?
+
+*"Doesn't Claude Code, Antigravity, or Cursor already have built-in memory?"*
+
+Built-in auto-memory is tied to a single tool and lets agents silently overwrite your rules. Vector-DB memory servers add Docker/DB overhead and break prompt caching with dynamic injections. **`@fabersep/memory` solves all four at once:**
+
+| | Built-in Auto-Memory | Vector-DB Memory MCPs | `@fabersep/memory` |
+| :--- | :--- | :--- | :--- |
+| **Portability** | Locked to one tool | Needs hosted DB/SDK | **One Git repo across Claude, Antigravity, Cursor, Codex** |
+| **Safety** | Agents write silently (drift) | Auto-extracted noise | **Read-only active memory + human `pre-memory` review** |
+| **Prompt Cache** | Grows unpredictably | Dynamic RAG breaks prefix | **Deterministic L0 (<1,500 tok), cache-warm (~80%+)** |
+| **Setup & Team** | Local only, no PRs | Docker / DB / API keys | **Zero dependencies, pure Git `HEAD` + team PRs** |
+
+> Want the full breakdown (why BM25 over embeddings, why prompt caching matters, mobile/remote access)? Read **[Why FaberSEP Memory? (FAQ & Comparisons)](docs/why-faber-memory.md)**.
 
 ---
 
@@ -369,6 +388,7 @@ The MCP server exposes exactly **3 lean tools** (~350 tokens total tool schema):
 
 This repository follows the [FaberSEP Spec](https://github.com/fabersep/spec) standard:
 
+- [Why FaberSEP Memory? (FAQ & Comparisons)](docs/why-faber-memory.md)
 - [Troubleshooting & Edge Cases](docs/troubleshooting.md)
 - [Master PRD](docs/master-prd.md)
 - [Architecture](docs/architecture.md)

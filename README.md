@@ -2,8 +2,6 @@
 
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
 
-> Layer 0 of the FaberSEP engineering context stack (`@fabersep/memory` -> `@fabersep/spec` -> `@fabersep/atlas`).
-
 **Prefix-cache-first, Git-backed Markdown memory for AI coding agents.**
 
 Zero databases. Zero native addons. Zero runtime dependencies. Just plain Markdown files in Git, a deterministic compiled index that keeps your prompt cache warm, a human-approved `pre-memory` inbox so agents never pollute your rules, and a 3-tool MCP server (`memory_search`, `memory_get`, `memory_propose`).

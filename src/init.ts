@@ -8,6 +8,8 @@ import { UserConfig } from './types.js';
 
 export const BLOCK_START = '<!-- faber-memory:start -->';
 export const BLOCK_END = '<!-- faber-memory:end -->';
+export const TOOL_GUIDANCE_LINE =
+  'Use the faber-memory MCP tools: memory_search and memory_get for the details behind these lines; when you learn a durable rule, decision, lesson or preference, call memory_propose (the user approves it later; never edit memory files directly).';
 export const PROJECT_HINT_LINE = 'Project memory: run npx @fabersep/memory init';
 
 export type EngineName = 'claude-code' | 'claude-desktop' | 'antigravity' | 'cursor' | 'codex';
@@ -30,7 +32,7 @@ export function getEngineSpecs(): Record<EngineName, EngineSpec> {
       instructionFile: (home) => path.join(home, '.claude', 'CLAUDE.md'),
       mcpConfigFile: (home) => path.join(home, '.claude.json'),
       renderBlock: (l0Path) =>
-        `${BLOCK_START}\n@${l0Path}\n${BLOCK_END}`,
+        `${BLOCK_START}\n@${l0Path}\n${TOOL_GUIDANCE_LINE}\n${BLOCK_END}`,
     },
     'claude-desktop': {
       name: 'claude-desktop',
@@ -48,7 +50,7 @@ export function getEngineSpecs(): Record<EngineName, EngineSpec> {
       instructionFile: (home) => path.join(home, '.gemini', 'GEMINI.md'),
       mcpConfigFile: (home) => path.join(home, '.gemini', 'config', 'mcp_config.json'),
       renderBlock: (l0Path) =>
-        `${BLOCK_START}\nAt session start, read ${l0Path} for global L0 memory and use the faber-memory MCP tools (memory_search, memory_get, memory_propose) for deeper recall.\n${BLOCK_END}`,
+        `${BLOCK_START}\nAt session start, read ${l0Path} (global L0 memory).\n${TOOL_GUIDANCE_LINE}\n${BLOCK_END}`,
     },
     cursor: {
       name: 'cursor',

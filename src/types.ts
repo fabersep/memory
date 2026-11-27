@@ -1,3 +1,4 @@
+import { getPackageVersion } from './version.js';
 export type Scope = 'personal' | 'team' | 'project';
 
 export type EntryType = 'rule' | 'decision' | 'lesson' | 'preference' | 'reference';
@@ -14,7 +15,7 @@ export type ProposalStatus = 'pending' | 'awaiting_commit' | 'push_failed';
 
 export type ProjectRootSource = 'mcp-roots' | 'cwd' | 'none';
 
-export const COMPILER_VERSION = '0.1.0';
+export const COMPILER_VERSION = getPackageVersion();
 export const DEFAULT_TOKEN_BUDGET = 1500;
 export const DEFAULT_STALE_DAYS = 14;
 export const DEFAULT_SIMILARITY_THRESHOLD = 0.45;

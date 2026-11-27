@@ -61,6 +61,12 @@ function inferSummary(raw: Record<string, unknown>, body: string, fallbackName: 
   return (firstLine || fallbackName).slice(0, 140);
 }
 
+// A heading with nothing under it but the next heading (e.g. a "# Rules" title
+// above "## ..." sections) is not an entry of its own.
+function hasSectionBody(section: { lines: string[] }): boolean {
+  return section.lines.slice(1).join('\n').trim().length > 0;
+}
+
 function splitTopLevelHeadings(content: string): { title: string; body: string }[] {
   const lines = content.replace(/\r\n/g, '\n').split('\n');
   const sections: { title: string; lines: string[] }[] = [];
@@ -69,7 +75,7 @@ function splitTopLevelHeadings(content: string): { title: string; body: string }
   for (const line of lines) {
     const m = line.match(/^#{1,2}\s+(.+)$/);
     if (m) {
-      if (current && current.lines.join('\n').trim()) {
+      if (current && hasSectionBody(current)) {
         sections.push(current);
       }
       current = { title: m[1].trim(), lines: [line] };
@@ -77,7 +83,7 @@ function splitTopLevelHeadings(content: string): { title: string; body: string }
       current.lines.push(line);
     }
   }
-  if (current && current.lines.join('\n').trim()) {
+  if (current && hasSectionBody(current)) {
     sections.push(current);
   }
   return sections.map((s) => ({ title: s.title, body: s.lines.join('\n').trim() }));

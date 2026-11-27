@@ -62,7 +62,7 @@ last_updated: 2026-11-26
 | `AC-17` | `FR-07` | Happy Path | Deterministic `import` converts `markdown-dir` into `pre-memory` without altering source files | `Passed` |
 | `AC-18a` | `FR-07` | Edge Case | Importing `claude-memory` reports duplicates and prints auto-memory disable guidance | `Passed` |
 | `AC-18b` | `FR-07` | Happy Path | Importing `agents-md` or `cursor-rules` creates whole-file proposal by default and splits with `--split-headings` | `Passed` |
-| `AC-19a` | `FR-08` | Happy Path | `init` defaults to dry-run diff without modifying any file | `Passed` |
+| `AC-19a` | `FR-08` | Happy Path | `init` applies by default; `init --preview` (alias `--dry-run`) prints the diff without modifying any file | `Passed` |
 | `AC-19b1` | `FR-08` | Happy Path | `init --apply` compiles `MEMORY.md` before writing user-level pointer and creates `.bak` backup | `Passed` |
 | `AC-19b2` | `FR-08` | Happy Path | Running `init --apply` twice is idempotent and keeps exactly one managed block | `Passed` |
 | `AC-19b3` | `FR-08` | Happy Path | `init --apply` writes only to user-level files and never modifies committed project files | `Passed` |
@@ -320,12 +320,14 @@ last_updated: 2026-11-26
 - **WHEN:** The user runs `faber-memory import --from agents-md ./AGENTS.md` and then reruns with `--split-headings`.
 - **THEN:** The default run stages one whole-file proposal, while `--split-headings` stages three separate proposals (one per top-level heading), leaving `./AGENTS.md` untouched.
 
-#### Scenario AC-19a: `init` defaults to dry-run diff
+#### Scenario AC-19a: `init` applies by default; `--preview` shows the diff only
 - **GIVEN:** A machine with an existing `~/.claude/CLAUDE.md`.
-- **WHEN:** The user runs `faber-memory init` without `--apply`.
+- **WHEN:** The user runs `faber-memory init --preview` (or `--dry-run`).
 - **THEN:** The CLI prints the exact proposed diff and exits 0 without modifying `~/.claude/CLAUDE.md` or any MCP config file.
+- **AND WHEN:** The user runs `faber-memory init` with no mode flag.
+- **THEN:** It applies the wiring exactly as `init --apply` does (AC-19b1–AC-19b3); `--apply` remains an accepted alias, and passing both `--apply` and `--preview` exits 1.
 
-#### Scenario AC-19b1: `init --apply` compiles L0 first and saves `.bak` backup
+#### Scenario AC-19b1: `init` (or `init --apply`) compiles L0 first and saves `.bak` backup
 - **GIVEN:** A machine with no compiled `MEMORY.md` yet and an existing `~/.claude/CLAUDE.md`.
 - **WHEN:** The user runs `faber-memory init --apply`.
 - **THEN:** `MEMORY.md` is compiled before `~/.claude/CLAUDE.md` is edited, a `.bak` backup is created, and the managed pointer block targets the existing compiled file.

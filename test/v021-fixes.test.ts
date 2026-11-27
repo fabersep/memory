@@ -88,3 +88,28 @@ test('v0.2.1: init blocks tell the agent when to call memory_propose', () => {
     assert.ok(text.includes('call memory_propose'), `${file}: ${text}`);
   }
 });
+
+test('v0.2.1: plain init applies by default; --dry-run is a preview alias; --apply still works', () => {
+  const tmp = makeTempDir();
+  const homeDir = path.join(tmp, 'home');
+  const userHome = path.join(tmp, 'user');
+  const claudeMd = path.join(userHome, '.claude', 'CLAUDE.md');
+  fs.mkdirSync(path.dirname(claudeMd), { recursive: true });
+  fs.writeFileSync(claudeMd, '# Existing rules\n', 'utf8');
+  runCli(['setup', path.join(tmp, 'personal')], { homeDir, userHome });
+
+  const dry = runCli(['init', '--dry-run', '--engine', 'claude-code'], { homeDir, userHome });
+  assert.equal(dry.status, 0, dry.stderr);
+  assert.equal(fs.readFileSync(claudeMd, 'utf8'), '# Existing rules\n');
+
+  const res = runCli(['init', '--engine', 'claude-code'], { homeDir, userHome });
+  assert.equal(res.status, 0, res.stderr);
+  assert.ok(res.stdout.includes('Connected: claude-code'), res.stdout);
+  assert.ok(fs.readFileSync(claudeMd, 'utf8').includes('faber-memory:start'));
+  assert.equal(fs.readFileSync(`${claudeMd}.bak`, 'utf8'), '# Existing rules\n');
+
+  const again = runCli(['init', '--apply', '--engine', 'claude-code'], { homeDir, userHome });
+  assert.equal(again.status, 0, again.stderr);
+  const both = runCli(['init', '--apply', '--preview'], { homeDir, userHome });
+  assert.equal(both.status, 1);
+});

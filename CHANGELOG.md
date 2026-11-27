@@ -11,11 +11,12 @@ All notable changes to `@fabersep/memory`. Versions follow [Semantic Versioning]
 
 ### Added
 - `--version` (also `-v`, `version`).
-- The `init` instruction block for Claude Code and Antigravity now tells the agent when to call `memory_propose`; the `memory_propose` tool description says the same for MCP-only engines. Re-run `init --apply` to pick it up.
+- The `init` instruction block for Claude Code and Antigravity now tells the agent when to call `memory_propose`; the `memory_propose` tool description says the same for MCP-only engines. Re-run `init` to pick it up.
 - `import` ends with a `NOT imported: N item(s)` line when the hygiene check leaves items out.
 - `docs/guide.md` (technical guide and full command reference), `CHANGELOG.md`, `CONTRIBUTING.md` and a CI test workflow.
 
 ### Changed
+- **`init` now applies by default** (with `.bak` backups and `--undo`). Use `init --preview` (alias `--dry-run`) to see the diff only. `--apply` still works as an alias.
 - The README is now a plain-language, story-first introduction; technical detail moved to `docs/guide.md`.
 
 ## 0.2.0 (2026-11-27)

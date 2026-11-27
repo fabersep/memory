@@ -11,6 +11,7 @@ import {
   loadConfig,
   saveConfig,
 } from './config.js';
+import { formatDoctorReport, runDoctor } from './doctor.js';
 import {
   getDefaultBranch,
   getHeadSha,
@@ -28,6 +29,13 @@ import {
   rejectProposal,
   saveProposal,
 } from './proposals.js';
+import {
+  buildShareableBenchmark,
+  computeStats,
+  formatShareableMarkdown,
+  formatStatsReport,
+  validateDaysArg,
+} from './stats.js';
 import { loadAllScopes, resolveProjectRoot } from './store.js';
 import { syncAllRoots } from './sync.js';
 import { Proposal, Scope, TeamSubmitMode } from './types.js';
@@ -341,7 +349,9 @@ async function main(): Promise<number> {
     console.log(c.bold(c.yellow('FaberSEP Memory Reset')));
     console.log('This will:');
     console.log('  1. Undo agent wiring (remove faber-memory blocks & MCP entries).');
-    console.log(`  2. Delete local state directory: ${homeDir} (config, compiled L0, pre-memory, team clone).`);
+    console.log(
+      `  2. Delete local state directory: ${homeDir} (config, compiled L0, pre-memory, metrics.jsonl, team clone).`,
+    );
     if (includePersonal && personalPath) {
       console.log(c.red(`  3. Delete personal memory Git repository: ${personalPath}`));
     } else if (personalPath) {
@@ -734,6 +744,55 @@ async function main(): Promise<number> {
     }
   }
 
+  if (cmd === 'stats') {
+    const daysCheck = validateDaysArg(flags.days);
+    if (!daysCheck.ok) {
+      printErrorWithHelp(daysCheck.error);
+      return 1;
+    }
+
+    const report = computeStats({
+      days: daysCheck.days,
+      includeCache: Boolean(flags.cache),
+      engine: typeof flags.engine === 'string' ? flags.engine : undefined,
+      logDir: typeof flags['log-dir'] === 'string' ? path.resolve(flags['log-dir']) : undefined,
+      homeDir,
+      cwd: process.cwd(),
+    });
+
+    if (flags.share) {
+      const card = buildShareableBenchmark(report);
+      if (flags.json) {
+        console.log(JSON.stringify(card, null, 2));
+      } else {
+        console.log(formatShareableMarkdown(card));
+      }
+      return 0;
+    }
+
+    if (flags.json) {
+      console.log(JSON.stringify(report, null, 2));
+      return 0;
+    }
+
+    console.log(formatStatsReport(report));
+    return 0;
+  }
+
+  if (cmd === 'doctor') {
+    const report = runDoctor({
+      strict: Boolean(flags.strict),
+      homeDir,
+      cwd: process.cwd(),
+    });
+    if (flags.json) {
+      console.log(JSON.stringify(report, null, 2));
+    } else {
+      console.log(formatDoctorReport(report));
+    }
+    return report.exitCode;
+  }
+
   console.error(`Unknown command: ${cmd}`);
   printHelp();
   return 1;
@@ -749,6 +808,8 @@ Commands:
   compile [--check] [--repo <dir>]
   sync [--timeout <ms>]
   status
+  stats [--days 1..90] [--json] [--cache] [--engine claude-code|antigravity|all] [--log-dir <path>] [--share]
+  doctor [--json] [--strict]
   review [--approve-all]
   approve <proposal-id> [...] [--mode auto|pr]
   reject <proposal-id> | reject --all [--yes]

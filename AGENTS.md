@@ -10,12 +10,12 @@ Entry file for AI coding agents working on `@fabersep/memory` (`fabersep/memory`
 
 - **Product:** [docs/master-prd.md](docs/master-prd.md)
 - **Architecture:** [docs/architecture.md](docs/architecture.md)
-- **Specs:** [docs/features/README.md](docs/features/README.md) (core v0.1 spec: [docs/features/01-core-memory/prd.md](docs/features/01-core-memory/prd.md) and [acceptance_criteria.md](docs/features/01-core-memory/acceptance_criteria.md))
+- **Specs:** [docs/features/README.md](docs/features/README.md) (`01-core-memory` v0.1 and `02-metrics-and-stats` v0.2)
 - **Source:** `src/` (TypeScript, ESM, zero runtime dependencies)
-- **Tests:** `test/` (`node:test`, covering all BDD scenarios `AC-01`–`AC-20b2`)
+- **Tests:** `test/` (`node:test`, covering `01-core-memory` `AC-01`–`AC-20b2` and `02-metrics-and-stats` `02/AC-01`–`02/AC-24b`)
 
 ## Gates
 
 - `npm test` must pass (`tsc -p tsconfig.json` + `node --test dist/test/*.test.js`) before any commit or PR.
-- Zero runtime dependencies and zero native addons in v0.1 (`NG-01`).
-- Every behavioral change must stay aligned with `docs/features/01-core-memory/acceptance_criteria.md`.
+- Zero runtime dependencies and zero native addons (`NG-01`).
+- Every behavioral change must stay aligned with its approved feature `acceptance_criteria.md` (`01-core-memory` and `02-metrics-and-stats`).

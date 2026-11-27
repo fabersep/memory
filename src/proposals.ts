@@ -27,6 +27,7 @@ import {
   removeThrowawayWorktree,
 } from './git.js';
 import { formatHygieneErrors, scanHygiene } from './hygiene.js';
+import { appendMetric } from './metrics.js';
 import { PROJECT_MEMORY_REL_DIR } from './store.js';
 import {
   EntryType,
@@ -174,6 +175,15 @@ export function rejectProposal(id: string, homeDir = getHomeDir()): Proposal {
     throw new Error(`Proposal "${id}" not found in pre-memory.`);
   }
   deleteProposal(proposal, homeDir);
+  appendMetric(
+    {
+      type: 'review_outcome',
+      ts: new Date().toISOString(),
+      scope: proposal.scope,
+      outcome: 'rejected',
+    },
+    homeDir,
+  );
   return proposal;
 }
 
@@ -310,8 +320,17 @@ export async function approveProposalsBatch(
     for (const p of personalProps) {
       deleteProposal(p, homeDir);
       approvedIds.push(p.id);
+      appendMetric(
+        {
+          type: 'review_outcome',
+          ts: new Date().toISOString(),
+          scope: 'personal',
+          outcome: 'approved_committed',
+        },
+        homeDir,
+      );
     }
-    const comp = compileGlobalL0(config, { homeDir });
+    const comp = compileGlobalL0(config, { homeDir, trigger: 'approve' });
     if (!comp.ok) {
       errors.push(...comp.errors);
       return { ok: false, approvedIds, messages, errors };
@@ -335,6 +354,15 @@ export async function approveProposalsBatch(
       p.targetFilePath = touched[0];
       saveProposal(p, homeDir);
       approvedIds.push(p.id);
+      appendMetric(
+        {
+          type: 'review_outcome',
+          ts: new Date().toISOString(),
+          scope: 'project',
+          outcome: 'awaiting_commit',
+        },
+        homeDir,
+      );
       messages.push(
         `Staged project memory file ${touched[0]} (uncommitted). Run: git add ${touched.join(' ')} && git commit -m "memory: ${p.entryId}"`,
       );
@@ -418,12 +446,21 @@ async function approveTeamBatch(
       if (directPush.ok) {
         for (const p of teamProps) {
           deleteProposal(p, homeDir);
+          appendMetric(
+            {
+              type: 'review_outcome',
+              ts: new Date().toISOString(),
+              scope: 'team',
+              outcome: 'approved_pushed',
+            },
+            homeDir,
+          );
         }
         // Sync serving clone & recompile L0
         const pull = await gitPullFfOnly(root.path, 5000);
         let recompiledL0 = false;
         if (pull.ok) {
-          const comp = compileGlobalL0(config, { homeDir });
+          const comp = compileGlobalL0(config, { homeDir, trigger: 'approve' });
           if (comp.ok) recompiledL0 = true;
         }
         return {
@@ -469,6 +506,15 @@ async function approveTeamBatch(
     const compareUrl = buildCompareUrl(remoteUrl, defaultBranch, branchName);
     for (const p of teamProps) {
       deleteProposal(p, homeDir);
+      appendMetric(
+        {
+          type: 'review_outcome',
+          ts: new Date().toISOString(),
+          scope: 'team',
+          outcome: 'approved_pr',
+        },
+        homeDir,
+      );
     }
     return {
       ok: true,
@@ -503,6 +549,15 @@ function markPushFailed(proposals: Proposal[], error: string, homeDir: string): 
       p.status = 'push_failed';
       p.error = error;
       saveProposal(p, homeDir);
+      appendMetric(
+        {
+          type: 'review_outcome',
+          ts: new Date().toISOString(),
+          scope: p.scope,
+          outcome: 'push_failed',
+        },
+        homeDir,
+      );
     }
   }, homeDir);
 }

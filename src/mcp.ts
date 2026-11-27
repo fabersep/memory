@@ -5,6 +5,7 @@ import { getCompiledL0Path, getHomeDir, loadConfig } from './config.js';
 import { compileGlobalL0 } from './compiler.js';
 import { getHeadSha } from './git.js';
 import { formatHygieneErrors, scanHygiene } from './hygiene.js';
+import { appendMetric, MAX_GET_FOUND_IDS, ProposeOutcome } from './metrics.js';
 import { createProposal, reconcileAwaitingCommitProposals } from './proposals.js';
 import { loadAllScopes, LoadedAllScopes, resolveProjectRoot } from './store.js';
 import { syncAllRoots } from './sync.js';
@@ -24,7 +25,7 @@ interface JsonRpcRequest {
   params?: Record<string, unknown>;
 }
 
-const MCP_TOOLS = [
+export const MCP_TOOLS = [
   {
     name: 'memory_search',
     description:
@@ -101,12 +102,13 @@ export class FaberMemoryMcpServer {
     const config = loadConfig(this.homeDir);
     // Ensure compiled L0 exists on startup if missing
     if (!fs.existsSync(getCompiledL0Path(this.homeDir))) {
-      compileGlobalL0(config, { homeDir: this.homeDir });
+      compileGlobalL0(config, { homeDir: this.homeDir, trigger: 'mcp-startup' });
     }
     this.startupPullPromise = syncAllRoots(config, {
       homeDir: this.homeDir,
       timeoutMs: this.startupPullTimeoutMs,
       recompile: true,
+      trigger: 'mcp-startup',
     })
       .then((res) => {
         if (res.warnings.length > 0) {
@@ -175,7 +177,23 @@ export class FaberMemoryMcpServer {
       const type = typeof args.type === 'string' ? (args.type as EntryType) : undefined;
       const includePending = Boolean(args.include_pending);
 
+      const t0 = performance.now();
       const results = this.index.search(query, { scope, type, includePending });
+      const latencyMs = Math.round((performance.now() - t0) * 100) / 100;
+
+      appendMetric(
+        {
+          type: 'search',
+          ts: new Date().toISOString(),
+          ...(scope ? { scope } : {}),
+          result_count: results.length,
+          zero_result: results.length === 0,
+          empty_query: query.trim().length === 0,
+          latency_ms: latencyMs,
+        },
+        this.homeDir,
+      );
+
       const warnings = this.drainWarnings(loaded);
       const payload = {
         results,
@@ -198,6 +216,7 @@ export class FaberMemoryMcpServer {
           content: [{ type: 'text', text: JSON.stringify({ error: 'ids array is required' }) }],
         };
       }
+      const t0 = performance.now();
       const found = [];
       const notFound: string[] = [];
       for (const id of ids) {
@@ -224,6 +243,21 @@ export class FaberMemoryMcpServer {
           }
         }
       }
+      const latencyMs = Math.round((performance.now() - t0) * 100) / 100;
+      const allFoundIds = found.map((e) => `${e.scope}:${e.id}`);
+      const idsTruncated = allFoundIds.length > MAX_GET_FOUND_IDS;
+      appendMetric(
+        {
+          type: 'get',
+          ts: new Date().toISOString(),
+          found_ids: idsTruncated ? allFoundIds.slice(0, MAX_GET_FOUND_IDS) : allFoundIds,
+          ...(idsTruncated ? { ids_truncated: true } : {}),
+          found_count: found.length,
+          not_found_count: notFound.length,
+          latency_ms: latencyMs,
+        },
+        this.homeDir,
+      );
       const warnings = this.drainWarnings(loaded);
       return {
         content: [
@@ -249,30 +283,61 @@ export class FaberMemoryMcpServer {
       const forceNew = Boolean(args.force_new);
       const reason = typeof args.reason === 'string' ? args.reason.trim() : undefined;
 
+      const metricScope: Scope = ['team', 'personal', 'project'].includes(scope)
+        ? scope
+        : 'personal';
+      const metricAction: ProposalAction = ['create', 'update', 'supersede'].includes(action)
+        ? action
+        : 'create';
+      const recordPropose = (
+        outcome: ProposeOutcome,
+        hygieneCategory?: 'secret' | 'machine-path',
+      ) => {
+        appendMetric(
+          {
+            type: 'propose',
+            ts: new Date().toISOString(),
+            source: 'mcp',
+            scope: metricScope,
+            action: metricAction,
+            outcome,
+            ...(hygieneCategory ? { hygiene_category: hygieneCategory } : {}),
+          },
+          this.homeDir,
+        );
+      };
+
       if (!['create', 'update', 'supersede'].includes(action)) {
+        recordPropose('validation_error');
         return errorResponse('Invalid action; expected create, update, or supersede.');
       }
       if (!['team', 'personal', 'project'].includes(scope)) {
+        recordPropose('validation_error');
         return errorResponse('Invalid scope; expected team, personal, or project.');
       }
       if (!summary) {
+        recordPropose('validation_error');
         return errorResponse('summary is required.');
       }
       if (!VALID_TYPES.includes(type)) {
+        recordPropose('validation_error');
         return errorResponse(`Invalid type; expected one of: ${VALID_TYPES.join(', ')}`);
       }
       if (!body) {
+        recordPropose('validation_error');
         return errorResponse('body is required.');
       }
 
       // Validate target_id for update / supersede (AC-08c1, AC-08c2)
       if (action === 'update' || action === 'supersede') {
         if (!targetId) {
+          recordPropose('validation_error');
           return errorResponse(`target_id is required when action is "${action}".`);
         }
         const exists = loaded.activeEntries.some((e) => e.id === targetId && e.scope === scope) ||
           loaded.activeEntries.some((e) => e.id === targetId);
         if (!exists) {
+          recordPropose('validation_error');
           return errorResponse(`Target entry "${targetId}" not found in active memory.`);
         }
       }
@@ -280,6 +345,8 @@ export class FaberMemoryMcpServer {
       // Hygiene scan (AC-20a)
       const hygieneFindings = scanHygiene(`${summary}\n${body}`);
       if (hygieneFindings.length > 0) {
+        const hasSecret = hygieneFindings.some((f) => f.category === 'secret');
+        recordPropose('hygiene_blocked', hasSecret ? 'secret' : 'machine-path');
         return errorResponse(
           `Hygiene scan rejected proposal:\n${formatHygieneErrors(hygieneFindings)}`,
           { findings: hygieneFindings },
@@ -289,6 +356,7 @@ export class FaberMemoryMcpServer {
       // Near-duplicate check on create (AC-10, AC-11)
       if (action === 'create') {
         if (forceNew && !reason) {
+          recordPropose('validation_error');
           return errorResponse('A non-empty "reason" is required when force_new is true.');
         }
         if (!forceNew) {
@@ -301,6 +369,7 @@ export class FaberMemoryMcpServer {
             config.similarityThreshold,
           );
           if (matches.length > 0) {
+            recordPropose('duplicate_blocked');
             return errorResponse(
               'Near-duplicate entry found. Use action "update" or "supersede", or pass force_new: true with a reason.',
               {
@@ -337,6 +406,7 @@ export class FaberMemoryMcpServer {
           },
           this.homeDir,
         );
+        recordPropose('staged');
         this.lastHeadSignature = '';
         const warnings = this.drainWarnings(loaded);
         return {
@@ -358,6 +428,7 @@ export class FaberMemoryMcpServer {
           ],
         };
       } catch (err: unknown) {
+        recordPropose('validation_error');
         return errorResponse(err instanceof Error ? err.message : String(err));
       }
     }

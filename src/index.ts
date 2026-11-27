@@ -12,3 +12,7 @@ export * from './importer.js';
 export * from './init.js';
 export * from './mcp.js';
 export * from './ui.js';
+export * from './metrics.js';
+export * from './cache-logs.js';
+export * from './stats.js';
+export * from './doctor.js';

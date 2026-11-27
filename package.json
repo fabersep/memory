@@ -1,6 +1,6 @@
 {
   "name": "@fabersep/memory",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "private": false,
   "description": "Prefix-cache-first, Git-backed Markdown memory MCP server, pre-memory staging, and import CLI for AI coding agents.",
   "license": "Apache-2.0",

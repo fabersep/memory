@@ -187,7 +187,7 @@ export function planOrApplyInit(
 
   if (options.apply && !options.undo) {
     // Always compile L0 BEFORE writing any user-level pointer (AC-19b1)
-    const comp = compileGlobalL0(config, { homeDir });
+    const comp = compileGlobalL0(config, { homeDir, trigger: 'init' });
     if (!comp.ok) {
       throw new Error(`L0 compilation failed before init --apply:\n${comp.errors.join('\n')}`);
     }

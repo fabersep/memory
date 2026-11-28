@@ -17,6 +17,7 @@ import {
   getHeadSha,
   gitCloneTeamRepo,
   gitInitSoloRepo,
+  gitSync,
   isGitRepo,
 } from './git.js';
 import { ImportSourceType, runImport } from './importer.js';
@@ -39,7 +40,7 @@ import {
 import { loadAllScopes, resolveProjectRoot } from './store.js';
 import { syncAllRoots } from './sync.js';
 import { getPackageVersion } from './version.js';
-import { Proposal, Scope, TeamSubmitMode } from './types.js';
+import { Proposal, Scope, TeamSubmitMode, UserConfig } from './types.js';
 import {
   c,
   hr,
@@ -47,6 +48,13 @@ import {
   normalizeTeamUrl,
   troubleshootingLink,
 } from './ui.js';
+
+// Flags that never take a value, so `init --preview ~/notes` keeps ~/notes as a positional.
+const BOOLEAN_FLAGS = new Set([
+  'apply', 'undo', 'preview', 'dry-run', 'check', 'json', 'strict', 'cache', 'share', 'yes',
+  'all', 'approve', 'approve-all', 'split-headings', 'normalize-paths', 'project-hint',
+  'include-personal-repo', 'help',
+]);
 
 function parseFlags(args: string[]): { positional: string[]; flags: Record<string, string | boolean> } {
   const positional: string[] = [];
@@ -60,7 +68,7 @@ function parseFlags(args: string[]): { positional: string[]; flags: Record<strin
       } else {
         const key = arg.slice(2);
         const next = args[i + 1];
-        if (next && !next.startsWith('--')) {
+        if (next && !next.startsWith('--') && !BOOLEAN_FLAGS.has(key)) {
           flags[key] = next;
           i++;
         } else {
@@ -90,6 +98,37 @@ function printErrorWithHelp(errMsg: string): void {
   const anchor = inferErrorAnchor(errMsg);
   if (anchor) {
     console.error(c.dim(`  Details: ${troubleshootingLink(anchor)}`));
+  }
+}
+
+function createPersonalRoot(config: UserConfig, personalPath: string, homeDir: string): void {
+  const existed = isGitRepo(personalPath);
+  gitInitSoloRepo(personalPath, 'main');
+  config.roots.personal = {
+    uuid: config.roots.personal?.uuid || generateUuid(),
+    path: personalPath,
+    scope: 'personal',
+    defaultBranch: existed ? getDefaultBranch(personalPath) : 'main',
+  };
+  saveConfig(config, homeDir);
+}
+
+// Notes already in a chosen folder are not active until they are in Git HEAD.
+function printUncommittedNotesHint(dir: string): void {
+  let count = 0;
+  try {
+    const res = gitSync(['--no-optional-locks', '-C', dir, 'status', '--porcelain', '-uall']);
+    if (!res.ok) return;
+    count = res.stdout.split('\n').filter((l) => /\.md"?$/i.test(l.trim())).length;
+  } catch {
+    return;
+  }
+  if (count > 0) {
+    console.log(
+      c.yellow(
+        `Found ${count} Markdown file(s) in ${dir} that are not committed yet; memory only reads committed notes. Commit them, or bring them in for review with: faber-memory import --from markdown-dir ${dir}`,
+      ),
+    );
   }
 }
 
@@ -155,19 +194,13 @@ async function main(): Promise<number> {
         : positional[0]
           ? path.resolve(positional[0])
           : getDefaultPersonalPath();
-    gitInitSoloRepo(personalPath, 'main');
-    config.roots.personal = {
-      uuid: config.roots.personal?.uuid || generateUuid(),
-      path: personalPath,
-      scope: 'personal',
-      defaultBranch: 'main',
-    };
-    saveConfig(config, homeDir);
+    createPersonalRoot(config, personalPath, homeDir);
     console.log(
       c.green(
-        `Initialized personal memory root at ${personalPath} (uuid: ${config.roots.personal.uuid})`,
+        `Initialized personal memory root at ${personalPath} (uuid: ${config.roots.personal!.uuid})`,
       ),
     );
+    printUncommittedNotesHint(personalPath);
     return 0;
   }
 
@@ -723,6 +756,35 @@ async function main(): Promise<number> {
     }
     const apply = !undo && !preview;
     const projectHint = Boolean(flags['project-hint']);
+
+    // init also creates the personal memory folder, so `setup` is optional:
+    // `init <folder>` picks the folder; plain `init` uses ~/.faber/memory when
+    // no personal or team root is configured yet.
+    if (!undo) {
+      const requested = positional[0] ? path.resolve(positional[0]) : undefined;
+      const current = config.roots.personal?.path;
+      if (requested && current && path.resolve(current) !== requested) {
+        printErrorWithHelp(
+          `Personal memory is already at ${current}. To move it, run: faber-memory config set-path personal ${requested}`,
+        );
+        return 1;
+      }
+      const target =
+        requested && !current
+          ? requested
+          : !current && !config.roots.team
+            ? getDefaultPersonalPath()
+            : undefined;
+      if (target) {
+        if (preview) {
+          console.log(c.cyan(`Would create your personal memory folder at ${target}.`));
+        } else {
+          createPersonalRoot(config, target, homeDir);
+          console.log(c.green(`Created your personal memory folder at ${target}.`));
+          printUncommittedNotesHint(target);
+        }
+      }
+    }
     const engines =
       typeof flags.engine === 'string'
         ? (flags.engine.split(',').map((e) => e.trim()) as EngineName[])
@@ -831,7 +893,7 @@ function printHelp(): void {
 Commands:
   setup [path] [--team <git-url|org/repo> --path <dir> --submit-mode auto|pr]
   config [set-path <personal|team> <new-path> | set-submit-mode <auto|pr> | unset <personal|team>]
-  init [--preview | --undo] [--engine claude-code,antigravity,claude-desktop,cursor,codex] [--project-hint]
+  init [folder] [--preview | --undo] [--engine claude-code,antigravity,claude-desktop,cursor,codex] [--project-hint]
   compile [--check] [--repo <dir>]
   sync [--timeout <ms>]
   status

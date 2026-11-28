@@ -16,6 +16,8 @@ All notable changes to `@fabersep/memory`. Versions follow [Semantic Versioning]
 - `docs/guide.md` (technical guide and full command reference), `CHANGELOG.md`, `CONTRIBUTING.md` and a CI test workflow.
 
 ### Changed
+- **`setup` is optional for solo use:** `init` creates `~/.faber/memory` when no memory is configured, and `init <folder>` puts it in a folder you choose. `setup` still works, and team mode still starts with `setup --team`.
+- Flags that take no value (`--preview`, `--apply`, `--json`, …) no longer swallow the next argument, so `init --preview ~/notes` works.
 - **`init` now applies by default** (with `.bak` backups and `--undo`). Use `init --preview` (alias `--dry-run`) to see the diff only. `--apply` still works as an alias.
 - The README is now a plain-language, story-first introduction; technical detail moved to `docs/guide.md`.
 

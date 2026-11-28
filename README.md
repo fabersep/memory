@@ -37,27 +37,25 @@ Your memory is a folder of short notes on your own computer, kept in Git so ever
 
 ---
 
-## Get started (about 3 minutes)
+## Get started (about 2 minutes)
 
 You need **Node.js 20 or newer** and **Git**. To check, run `node -v` and `git --version` in a terminal.
 
-**1. Create your memory folder**
-
-```bash
-npx @fabersep/memory setup
-```
-
-This creates `~/.faber/memory`, an empty folder for your notes, with its own Git history.
-
-**2. Connect your AI assistants**
+**1. Set it up**
 
 ```bash
 npx @fabersep/memory init
 ```
 
-It finds the assistants on your computer and connects them. It keeps a backup of every file it touches, and you can undo it at any time with `npx @fabersep/memory init --undo`.
+This creates your memory folder (`~/.faber/memory`, with its own Git history), finds the AI assistants on your computer and connects them. It keeps a backup of every file it touches, and you can undo it at any time with `npx @fabersep/memory init --undo`.
 
-**3. Check that everything is connected**
+Want your notes in another folder? Give its path:
+
+```bash
+npx @fabersep/memory init ~/my-notes
+```
+
+**2. Check that everything is connected**
 
 ```bash
 npx @fabersep/memory doctor
@@ -65,7 +63,7 @@ npx @fabersep/memory doctor
 
 You should see `PASS` lines. Each `WARN` or `FAIL` line comes with a one-line hint on how to fix it.
 
-**4. Start a new chat in your assistant**
+**3. Start a new chat in your assistant**
 
 Tell it something about your project that it would otherwise get wrong, for example:
 
@@ -73,7 +71,7 @@ Tell it something about your project that it would otherwise get wrong, for exam
 
 It should suggest saving this as a memory. (If it doesn't, ask it: *"Propose this as a memory."*)
 
-**5. Approve what you want to keep**
+**4. Approve what you want to keep**
 
 ```bash
 npx @fabersep/memory review

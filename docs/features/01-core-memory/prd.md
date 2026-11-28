@@ -158,7 +158,7 @@ Solo developers and teams get one lightweight, engine-agnostic, Apache-2.0 CLI a
   - Writes pointers **only** into user-level uncommitted files (never writes machine-specific paths into committed project files such as a repo's `AGENTS.md` or `CLAUDE.md`).
   - Always compiles L0 once **before** writing any pointer so no engine points at a missing file.
   - Edits existing user instruction files only inside idempotent managed blocks (`<!-- faber-memory:start -->` ... `<!-- faber-memory:end -->`).
-  - Applies by default and saves a `.bak` backup before the first edit; `--preview` (alias `--dry-run`) prints the diff without writing; `--apply` is kept as an alias (owner decision 2026-11-27, Work board #400).
+  - Applies by default and saves a `.bak` backup before the first edit; `--preview` (alias `--dry-run`) prints the diff without writing; `--apply` is kept as an alias (owner decision 2026-11-27, Work board #400). When no personal or team root is configured, `init` first creates the personal repo (default `~/.faber/memory`, or `init <folder>`), so `setup` is optional for solo use (owner decision 2026-11-28).
   - `faber-memory init --undo` removes **only** the managed blocks and the MCP entries added by `init`; it preserves any user edits outside the managed blocks and prints the `.bak` path without auto-restoring it.
   - Any optional hint committed to a project repository is a single pathless line (`Project memory: run npx @fabersep/memory init`).
 - **Per-Engine Delivery Matrix (unverified cells remain `UNKNOWN` / `GAP` until verified against the real tool prior to release):**

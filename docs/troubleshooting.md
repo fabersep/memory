@@ -60,8 +60,8 @@ During `import --from markdown-dir` or `claude-memory`, files named `MEMORY.md`,
 
 ## Claude Code `autoMemoryEnabled` Setting {#claude-auto-memory}
 
-**Why `init --apply` does NOT change `~/.claude/settings.json` automatically:**
-To stay non-invasive and trustworthy, `init --apply` only writes its clearly marked `<!-- faber-memory:start -->` block and MCP server entry. It never silently disables built-in features of your AI tool.
+**Why `init` does NOT change `~/.claude/settings.json` automatically:**
+To stay non-invasive and trustworthy, `init` only writes its clearly marked `<!-- faber-memory:start -->` block and MCP server entry. It never silently disables built-in features of your AI tool.
 
 **Why you may want to disable Claude auto-memory manually:**
 If Claude Code's built-in auto-memory stays enabled, Claude may keep writing notes directly to `~/.claude/projects/.../memory/` without going through `pre-memory` review — creating two parallel memory systems.

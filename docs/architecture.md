@@ -29,7 +29,7 @@ src/
   proposals.ts    # pre-memory CRUD, collision-free IDs, awaiting_commit / push_failed lifecycle, batch approve
   sync.ts         # Non-blocking pull --ff-only with 5s timeout, dirty-clone refusal, recompile
   importer.ts     # Deterministic zero-LLM import (markdown-dir, claude-memory, agents-md, cursor-rules)
-  init.ts         # Multi-engine delivery matrix, dry-run diff, managed blocks, .bak backup, --undo
+  init.ts         # Multi-engine delivery matrix, apply-by-default with --preview diff, managed blocks, .bak backup, --undo
   mcp.ts          # Stdio JSON-RPC 2.0 MCP server exposing exactly 3 tools (memory_search, memory_get, memory_propose)
   metrics.ts      # Privacy-first local append-only metrics.jsonl ledger, 90d/10MB pruning, non-blocking lock
   cache-logs.ts   # Opt-in read-only numeric prompt-cache log parser (Claude Code, Antigravity) & L0 correlation

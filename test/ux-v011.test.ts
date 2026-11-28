@@ -139,7 +139,7 @@ test('v0.1.1: reject --all, config unset, reset, and Before/After init formattin
   assert.equal(runCli(['setup', personalDir], env).status, 0);
 
   // init dry-run prints Before/After
-  const dry = runCli(['init'], env);
+  const dry = runCli(['init', '--preview'], env);
   assert.equal(dry.status, 0);
   assert.match(dry.stdout, /Before:/);
   assert.match(dry.stdout, /After:/);

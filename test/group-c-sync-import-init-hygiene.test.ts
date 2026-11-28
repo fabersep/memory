@@ -182,7 +182,7 @@ test('AC-18b: Importing agents-md creates whole-file proposal by default and spl
   assert.equal(fs.readFileSync(agentsFile, 'utf8'), content);
 });
 
-test('AC-19a: init defaults to dry-run diff without modifying any file', () => {
+test('AC-19a: init --preview shows the diff without modifying any file', () => {
   const tmp = makeTempDir();
   const homeDir = path.join(tmp, 'home');
   const userHome = path.join(tmp, 'user');
@@ -191,9 +191,9 @@ test('AC-19a: init defaults to dry-run diff without modifying any file', () => {
   fs.writeFileSync(claudeMd, '# Existing rules\n', 'utf8');
   runCli(['setup', path.join(tmp, 'personal')], { homeDir, userHome });
 
-  const res = runCli(['init', '--engine', 'claude-code'], { homeDir, userHome });
+  const res = runCli(['init', '--preview', '--engine', 'claude-code'], { homeDir, userHome });
   assert.equal(res.status, 0, res.stderr);
-  assert.ok(res.stdout.includes('Dry-run only'));
+  assert.ok(res.stdout.includes('Preview only'));
   assert.equal(fs.readFileSync(claudeMd, 'utf8'), '# Existing rules\n');
   assert.ok(!fs.existsSync(path.join(userHome, '.claude.json')));
 });

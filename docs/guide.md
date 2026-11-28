@@ -62,12 +62,15 @@ Set `FABER_MEMORY_HOME` to move everything under `~/.config/faber-memory` somewh
 
 ## Connecting engines (`init`)
 
-`init` shows a Before/After diff and changes nothing. `init --apply` compiles L0 first, backs up every touched file as `.bak`, writes a marked `<!-- faber-memory:start --> ... <!-- faber-memory:end -->` block, and registers the `faber-memory` MCP server (`npx -y @fabersep/memory serve`). `init --undo` removes the block and the server entry and keeps your memory repos and proposals.
+`init` compiles L0 first, backs up every touched file as `.bak`, writes a marked `<!-- faber-memory:start --> ... <!-- faber-memory:end -->` block, and registers the `faber-memory` MCP server (`npx -y @fabersep/memory serve`). `init --undo` removes the block and the server entry and keeps your memory repos and proposals.
+
+To see the exact Before/After diff without changing anything, run `init --preview` (alias `--dry-run`). `--apply` is still accepted and does the same as plain `init`.
 
 Without `--engine`, `init` targets the engines it finds (`~/.claude`, `~/.gemini`, `~/.cursor`), or Claude Code if it finds none.
 
 ```bash
-npx @fabersep/memory init --engine claude-code,antigravity --apply
+npx @fabersep/memory init --engine claude-code,antigravity
+npx @fabersep/memory init --engine claude-desktop   # Claude Desktop is not auto-detected
 ```
 
 | Engine | Instruction file | MCP config | Notes |
@@ -80,7 +83,7 @@ npx @fabersep/memory init --engine claude-code,antigravity --apply
 
 The instruction block includes one fixed line that tells the agent to use `memory_search` / `memory_get` for details and to call `memory_propose` when it learns a durable rule, decision, lesson or preference. The line never changes between sessions, so it does not hurt prompt caching.
 
-`init --apply` never changes your engine's own settings. If you use Claude Code and don't want two memory systems at once, see [disabling Claude auto-memory](troubleshooting.md#claude-auto-memory).
+`init` never changes your engine's own settings. If you use Claude Code and don't want two memory systems at once, see [disabling Claude auto-memory](troubleshooting.md#claude-auto-memory).
 
 The MCP entry runs the latest published version through `npx`. To pin a version, edit the entry's args to `@fabersep/memory@<version>`, or install globally and point the entry at `faber-memory serve`.
 
@@ -137,7 +140,7 @@ npx @fabersep/memory setup --team https://github.com/your-org/team-memory.git
 #    Optional: --path ~/team-memory   (default: ~/.config/faber-memory/clones/team)
 
 # 2. Connect your engines (skip if done already)
-npx @fabersep/memory init --apply
+npx @fabersep/memory init
 
 # 3. Optional: import notes into the team scope
 npx @fabersep/memory import --from markdown-dir ./notes --scope team
@@ -197,7 +200,7 @@ Options: `--days 1..90`, `--engine claude-code|antigravity|all`, `--log-dir <pat
 - Global install: `npm install -g @fabersep/memory@latest`.
 - From source: `git pull && npm install && npm run build`.
 
-Your repos and config keep working. Re-running `init --apply` after an update is safe and idempotent.
+Your repos and config keep working. Re-running `init` after an update is safe and idempotent.
 
 **Clean up:**
 
@@ -235,7 +238,7 @@ npm link
 | `config set-path <personal\|team> <new-path>` | Move a configured root, keeping its UUID. |
 | `config set-submit-mode <auto\|pr>` | Change how team approvals are pushed. |
 | `config unset <personal\|team>` | Forget a root without deleting files. |
-| `init [--apply \| --undo] [--engine ...] [--project-hint]` | Preview, apply (with `.bak` backups) or undo engine wiring. |
+| `init [--preview \| --undo] [--engine ...] [--project-hint]` | Connect engines (with `.bak` backups), preview the diff only (`--preview`, alias `--dry-run`), or undo. |
 | `compile [--check] [--repo <dir>]` | Compile L0 `MEMORY.md`, or validate schema, budget and hygiene (`--check`, for CI). |
 | `sync [--timeout <ms>]` | Fast-forward pull remote changes and recompile L0. |
 | `status` | Show the compiled L0, configured roots, warnings and pending or stale proposals. |

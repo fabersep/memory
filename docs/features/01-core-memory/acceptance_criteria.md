@@ -68,6 +68,7 @@ last_updated: 2026-11-26
 | `AC-19b3` | `FR-08` | Happy Path | `init --apply` writes only to user-level files and never modifies committed project files | `Passed` |
 | `AC-19c` | `FR-08` | Edge Case | `init --undo` removes managed blocks and MCP entries while preserving user edits outside blocks and `.bak` | `Passed` |
 | `AC-19d` | `FR-08` | Edge Case | Unverified engine marked `GAP` receives MCP-only wiring; optional project hint contains no path | `Passed` |
+| `AC-19e` | `FR-08` | Happy Path | `init` creates the personal memory folder when none is configured; `init <folder>` picks the folder | `Passed` |
 | `AC-20a` | `FR-09` | Error Handling | `memory_propose` rejects secrets and machine-specific paths with redacted diagnostics | `Passed` |
 | `AC-20b1` | `FR-09` | Error Handling | `approve` rejects staged proposals containing secrets or machine paths with redacted diagnostics | `Passed` |
 | `AC-20b2` | `FR-09` | Error Handling | `compile --check` fails CI on secrets or machine paths with redacted diagnostics | `Passed` |
@@ -351,6 +352,14 @@ last_updated: 2026-11-26
 - **GIVEN:** An engine marked `GAP` for user-level import in the delivery matrix and a project repository requesting a memory hint.
 - **WHEN:** `faber-memory init --apply` configures that engine and generates the optional project hint.
 - **THEN:** The engine is configured for MCP-only delivery (with no repo-path workaround), and the optional project hint is the single pathless line `Project memory: run npx @fabersep/memory init`.
+
+#### Scenario AC-19e: `init` creates the personal memory folder, so `setup` is optional
+- **GIVEN:** A machine with no personal and no team root in `config.json`.
+- **WHEN:** The user runs `faber-memory init`.
+- **THEN:** It creates and registers a solo Git repo at `~/.faber/memory` exactly as `setup` does, then wires the engines; a second `init` creates nothing new.
+- **AND WHEN:** The user runs `faber-memory init <folder>` instead.
+- **THEN:** The personal repo is created in `<folder>` (an existing folder is reused and its files are left untouched; uncommitted Markdown files there are reported with an `import` hint). `init --preview <folder>` only says what it would create.
+- **AND:** If a personal root already exists at another path, `init <folder>` exits 1 and points to `config set-path`; if only a team root is configured, plain `init` creates no personal folder.
 
 #### Scenario AC-20a: Hygiene scan blocks secrets and machine paths on `memory_propose`
 - **GIVEN:** A proposal body containing a bearer token or `/Users/alice/private-repo`.

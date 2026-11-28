@@ -50,7 +50,7 @@ flowchart LR
 
 | What | Default path |
 | :--- | :--- |
-| Personal memory repo | `~/.faber/memory` (`setup [path]` to choose another) |
+| Personal memory repo | `~/.faber/memory` (`init <folder>` or `setup <folder>` to choose another) |
 | Config | `~/.config/faber-memory/config.json` |
 | Compiled L0 index | `~/.config/faber-memory/state/MEMORY.md` |
 | Pending proposals (`pre-memory`) | `~/.config/faber-memory/state/pre-memory/<root-uuid>/` |
@@ -62,7 +62,7 @@ Set `FABER_MEMORY_HOME` to move everything under `~/.config/faber-memory` somewh
 
 ## Connecting engines (`init`)
 
-`init` compiles L0 first, backs up every touched file as `.bak`, writes a marked `<!-- faber-memory:start --> ... <!-- faber-memory:end -->` block, and registers the `faber-memory` MCP server (`npx -y @fabersep/memory serve`). `init --undo` removes the block and the server entry and keeps your memory repos and proposals.
+If no personal or team memory is configured yet, `init` first creates the personal repo at `~/.faber/memory` (or at `<folder>` with `init <folder>`; an existing folder is reused and its files are left alone). It then compiles L0, backs up every touched file as `.bak`, writes a marked `<!-- faber-memory:start --> ... <!-- faber-memory:end -->` block, and registers the `faber-memory` MCP server (`npx -y @fabersep/memory serve`). `init --undo` removes the block and the server entry and keeps your memory repos and proposals.
 
 To see the exact Before/After diff without changing anything, run `init --preview` (alias `--dry-run`). `--apply` is still accepted and does the same as plain `init`.
 
@@ -232,13 +232,13 @@ npm link
 
 | Command | Description |
 | :--- | :--- |
-| `setup [path]` | Create a personal memory Git repo (default `~/.faber/memory`). |
+| `setup [path]` | Create a personal memory Git repo only, without connecting engines (`init` does this for you). |
 | `setup --team <url\|org/repo> [--path <dir>] [--submit-mode auto\|pr]` | Clone and register a shared team repo. |
 | `config` | Print `~/.config/faber-memory/config.json`. |
 | `config set-path <personal\|team> <new-path>` | Move a configured root, keeping its UUID. |
 | `config set-submit-mode <auto\|pr>` | Change how team approvals are pushed. |
 | `config unset <personal\|team>` | Forget a root without deleting files. |
-| `init [--preview \| --undo] [--engine ...] [--project-hint]` | Connect engines (with `.bak` backups), preview the diff only (`--preview`, alias `--dry-run`), or undo. |
+| `init [folder] [--preview \| --undo] [--engine ...] [--project-hint]` | Create the personal memory folder if needed, then connect engines (with `.bak` backups), preview the diff only (`--preview`, alias `--dry-run`), or undo. |
 | `compile [--check] [--repo <dir>]` | Compile L0 `MEMORY.md`, or validate schema, budget and hygiene (`--check`, for CI). |
 | `sync [--timeout <ms>]` | Fast-forward pull remote changes and recompile L0. |
 | `status` | Show the compiled L0, configured roots, warnings and pending or stale proposals. |
